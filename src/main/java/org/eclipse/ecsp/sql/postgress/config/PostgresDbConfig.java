@@ -79,8 +79,8 @@ import static org.postgresql.PGProperty.SSL_ROOT_CERT;
 
 /**
  * Configuration class for managing PostgresDB connections using HikariCP.
- * <p>
- * This class provides the following functionalities:
+ *
+ * <p>This class provides the following functionalities:
  * <ul>
  *   <li>Configures a HikariCP connection pool for PostgresDB.</li>
  *   <li>Supports retry mechanisms for connection and datasource creation.</li>
@@ -91,17 +91,17 @@ import static org.postgresql.PGProperty.SSL_ROOT_CERT;
  *   <li>Exports health and metrics information for monitoring.</li>
  *   <li>Refreshes credentials if enabled.</li>
  * </ul>
- * <p>
- * This class ensures graceful shutdown of connections and the datasource during application termination.
- * <p>
- * Dependencies:
+ *
+ * <p>This class ensures graceful shutdown of connections and the datasource during application termination.
+ *
+ * <p>Dependencies:
  * <ul>
  *   <li>HikariCP for connection pooling</li>
  *   <li>Dropwizard Metrics for health and metrics monitoring</li>
  *   <li>Spring Framework for dependency injection</li>
  * </ul>
- * <p>
- * Note: Ensure that all required PostgresDB properties are correctly configured in the environment.
+ *
+ * <p>Note: Ensure that all required PostgresDB properties are correctly configured in the environment.
  *
  * @author kaushalaroraharman
  * @version 1.1
@@ -297,9 +297,7 @@ public class PostgresDbConfig {
         try {
             connection = createConnections();
             LOGGER.info("Connection created successfully with refreshed credentials.");
-        }
-        catch (Exception exception)
-        {
+        } catch (Exception exception) {
             this.retryConnectionCreation();
         }
     }

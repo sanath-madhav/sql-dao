@@ -40,6 +40,7 @@
 package org.eclipse.ecsp.sql.postgress.config;
 
 import org.awaitility.Awaitility;
+import org.awaitility.Durations;
 import org.eclipse.ecsp.sql.authentication.DefaultPostgresDbCredentialsProvider;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -55,7 +56,6 @@ import org.testcontainers.junit.jupiter.Container;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
-import org.awaitility.Durations;
 
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.times;
@@ -84,12 +84,14 @@ class PostgresDbConfigRefreshTest {
     @Container
     static PostgreSQLContainer postgresqlContainer = new PostgreSQLContainer("postgres:15").withDatabaseName("test")
             .withUsername("root").withPassword("root");
+    
+    final int fourTimes = 4;
 
     /**
      * Sets up postgres.
      */
     @BeforeAll
-    public static void setUpPostgres() {
+    static void setUpPostgres() {
         postgresqlContainer.start();
         System.setProperty("DB_URL", postgresqlContainer.getJdbcUrl());
     }
@@ -102,7 +104,9 @@ class PostgresDbConfigRefreshTest {
     @Test
     void testConnection() throws SQLException {
         assertNotNull(dataSource.getConnection());
-        Awaitility.await().atMost(Durations.FIVE_SECONDS).untilAsserted(() -> verify(config, times(4)).postgresCredsRefreshJob());
+        Awaitility.await()
+            .atMost(Durations.FIVE_SECONDS)
+            .untilAsserted(() -> verify(config, times(fourTimes)).postgresCredsRefreshJob());
     }
 
 

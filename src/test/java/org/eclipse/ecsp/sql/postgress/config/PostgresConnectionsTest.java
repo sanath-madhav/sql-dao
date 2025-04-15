@@ -41,7 +41,6 @@ package org.eclipse.ecsp.sql.postgress.config;
 
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.HikariPoolMXBean;
-
 import org.eclipse.ecsp.sql.authentication.CredentialsProvider;
 import org.eclipse.ecsp.sql.authentication.DefaultPostgresDbCredentialsProvider;
 import org.eclipse.ecsp.sql.exception.SqlDaoException;

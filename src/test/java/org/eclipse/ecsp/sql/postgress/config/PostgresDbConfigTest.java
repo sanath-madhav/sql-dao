@@ -81,7 +81,7 @@ class PostgresDbConfigTest {
      * Sets up postgres.
      */
     @BeforeAll
-    public static void setUpPostgres() {
+    static void setUpPostgres() {
         postgresqlContainer.start();
         System.setProperty("DB_URL", postgresqlContainer.getJdbcUrl());
     }
