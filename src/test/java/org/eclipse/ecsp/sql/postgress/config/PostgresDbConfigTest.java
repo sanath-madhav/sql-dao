@@ -101,7 +101,7 @@ class PostgresDbConfigTest {
      * Tear up postgres server.
      */
     @AfterAll
-    public static void tearUpPostgresServer() {
+    static void tearUpPostgresServer() {
         postgresqlContainer.stop();
     }
 }
