@@ -39,10 +39,10 @@
 
 package org.eclipse.ecsp.sql.postgress.metrics;
 
-import org.springframework.stereotype.Component;
 import org.eclipse.ecsp.utils.logger.IgniteLogger;
 import org.eclipse.ecsp.utils.logger.IgniteLoggerFactory;
 import org.eclipse.ecsp.utils.metrics.IgniteGuage;
+import org.springframework.stereotype.Component;
 
 /**
  * Creates and registers Guage metric in Prometheus for metrics in PostgresDB,
