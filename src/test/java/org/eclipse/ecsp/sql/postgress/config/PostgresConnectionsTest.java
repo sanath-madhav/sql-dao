@@ -128,17 +128,17 @@ class PostgresConnectionsTest {
 
         @Override
         public void softEvictConnections() {
-        	// no implementation required for testing
+            // no implementation required for testing
         }
 
         @Override
         public void suspendPool() {
-        	// no implementation required for testing
+            // no implementation required for testing
         }
 
         @Override
         public void resumePool() {
-        	// no implementation required for testing
+            // no implementation required for testing
         }
     };
 

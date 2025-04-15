@@ -93,7 +93,7 @@ class TestCredentialsProvider implements CredentialsProvider {
      */
     @Override
     public void refreshCredentials() {
-    	// credentials are not refreshed for testing
+        // credentials are not refreshed for testing
     }
 
     /**
