@@ -87,6 +87,7 @@
 		<maven.compiler.source>${java.version}</maven.compiler.source>
 		<maven.compiler.target>${java.version}</maven.compiler.target>
 		<hikaricp.version>5.0.1</hikaricp.version>
+		<awaitility.version>4.3.0</awaitility.version>
 		<prometheus.client.version>0.6.0</prometheus.client.version>
 		<spring.boot.version>3.2.5</spring.boot.version>
 		<lombok.version>1.18.28</lombok.version>
@@ -175,6 +176,13 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<version>${spring.boot.version}</version>
 			<scope>test</scope>
+		</dependency>
+		
+		<dependency>
+		    <groupId>org.awaitility</groupId>
+		    <artifactId>awaitility</artifactId>
+		    <version>${awaitility.version}</version>
+		    <scope>test</scope>
 		</dependency>
 
 		<dependency>
