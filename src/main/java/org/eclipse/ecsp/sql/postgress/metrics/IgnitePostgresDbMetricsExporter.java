@@ -226,6 +226,8 @@ public class IgnitePostgresDbMetricsExporter {
             LOGGER.info("Shutting down the PostgresDB metrics executor...");
             ThreadUtils.shutdownExecutor(postgresDbMetricsExecutor, shutdownBuffer, false);
         }
-        prometheusExportServer.stop();
+        if (prometheusExportServer != null) {
+            prometheusExportServer.stop();
+        }
     }
 }
