@@ -42,6 +42,7 @@ package org.eclipse.ecsp.sql.postgress.config;
 import org.eclipse.ecsp.sql.authentication.CredentialsProvider;
 import org.eclipse.ecsp.sql.authentication.DefaultPostgresDbCredentialsProvider;
 import org.eclipse.ecsp.sql.exception.SqlDaoException;
+import org.eclipse.ecsp.sql.multitenancy.TenantDatabaseProperties;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -50,7 +51,8 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.sql.Connection;
-
+import java.util.Map;
+import javax.sql.DataSource;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
@@ -71,17 +73,22 @@ class PostgresConfigJunitTest {
     @InjectMocks
     PostgresDbConfig postgresDbConfig;
 
-    /** The default postgres db credentials provider. */
-    @Mock
-    DefaultPostgresDbCredentialsProvider defaultPostgresDbCredentialsProvider;
-
-    /** The credentials provider. */
-    @Mock
-    CredentialsProvider credentialsProvider;
-
     /** The connection. */
     @Mock
     Connection connection;
+
+    /** The data source. */
+    @Mock
+    DataSource dataSource;
+
+    @Mock
+    Map<Object, Object> targetDataSources;
+
+    @Mock
+    Map<String, CredentialsProvider> credentialsProviderMap;
+
+    /** The default postgres db credentials provider. */
+    DefaultPostgresDbCredentialsProvider defaultPostgresDbCredentialsProvider;
 
     /** The Constant THREE. */
     public static final int THREE = 3;
@@ -95,24 +102,20 @@ class PostgresConfigJunitTest {
     @Test
     void testFailureDatasourceCreation() {
         MockitoAnnotations.openMocks(this);
-        ReflectionTestUtils.setField(postgresDbConfig, "dataSourceRetryCount", THREE);
-        ReflectionTestUtils.setField(postgresDbConfig, "dataSourceRetryDelay", THIRTY_THREE);
-        ReflectionTestUtils.setField(postgresDbConfig, "connectionRetryCount", THREE);
-        ReflectionTestUtils.setField(postgresDbConfig, "connectionRetryDelay", THIRTY_THREE);
-        Exception e = assertThrows(SqlDaoException.class, () -> postgresDbConfig.initDataSource());
+        defaultPostgresDbCredentialsProvider = new DefaultPostgresDbCredentialsProvider();
+        ReflectionTestUtils.setField(postgresDbConfig, "credsProviderMap", credentialsProviderMap);
+        ReflectionTestUtils.setField(defaultPostgresDbCredentialsProvider, "userName", "testUser");
+        ReflectionTestUtils.setField(defaultPostgresDbCredentialsProvider, "password", "testPassword");
+        // Create a dummy TenantDatabaseProperties for the test
+        TenantDatabaseProperties dbProps = new TenantDatabaseProperties();
+        dbProps.setDataSourceRetryCount(THREE);
+        dbProps.setDataSourceRetryDelay(THIRTY_THREE);
+        dbProps.setConnectionRetryCount(THREE);
+        dbProps.setConnectionRetryDelay(THIRTY_THREE);
+        dbProps.setCredentialProviderBeanName(
+            defaultPostgresDbCredentialsProvider.getClass().getName());
+        when(credentialsProviderMap.get(anyString())).thenReturn(defaultPostgresDbCredentialsProvider);
+        Exception e = assertThrows(SqlDaoException.class, () -> postgresDbConfig.initDataSource("default", dbProps));
         assertTrue(e.getMessage().contains("Retry Attempts exhausted for creating the datasource"));
-    }
-
-    /**
-     * Test.
-     */
-    @Test
-    void test()  {
-        MockitoAnnotations.openMocks(this);
-        ReflectionTestUtils.setField(postgresDbConfig, "credentialProviderBeanName", "testCredentialsProvider");
-        ReflectionTestUtils.setField(postgresDbConfig, "ctx", ctx);
-        when(ctx.getBean(anyString())).thenReturn(new TestCredentialsProvider());
-        postgresDbConfig.setCredentialsProvider();
-        assertNull(postgresDbConfig.dataSource());
     }
 }

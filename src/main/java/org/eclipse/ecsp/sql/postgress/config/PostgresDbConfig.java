@@ -1,38 +1,38 @@
 /*
  *
  *
- *   ******************************************************************************
+ * ******************************************************************************
  *
- *    Copyright (c) 2023-24 Harman International
- *
- *
- *
- *    Licensed under the Apache License, Version 2.0 (the "License");
- *
- *    you may not use this file except in compliance with the License.
- *
- *    You may obtain a copy of the License at
+ * Copyright (c) 2023-24 Harman International
  *
  *
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * Licensed under the Apache License, Version 2.0 (the "License");
  *
+ * you may not use this file except in compliance with the License.
  *
- *    Unless required by applicable law or agreed to in writing, software
- *
- *    distributed under the License is distributed on an "AS IS" BASIS,
- *
- *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *
- *    See the License for the specific language governing permissions and
- *
- *    limitations under the License.
+ * You may obtain a copy of the License at
  *
  *
  *
- *    SPDX-License-Identifier: Apache-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- *    *******************************************************************************
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ *
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *
+ * See the License for the specific language governing permissions and
+ *
+ * limitations under the License.
+ *
+ *
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * *******************************************************************************
  *
  *
  */
@@ -44,33 +44,39 @@ import com.codahale.metrics.health.HealthCheckRegistry;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.HikariPoolMXBean;
-import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.ecsp.sql.authentication.CredentialsProvider;
-import org.eclipse.ecsp.sql.dao.constants.CredentialsConstants;
 import org.eclipse.ecsp.sql.dao.constants.HealthConstants;
+import org.eclipse.ecsp.sql.dao.constants.MultitenantConstants;
 import org.eclipse.ecsp.sql.dao.constants.PostgresDbConstants;
+import org.eclipse.ecsp.sql.dao.utils.SqlDaoUtils;
 import org.eclipse.ecsp.sql.exception.SqlDaoException;
+import org.eclipse.ecsp.sql.multitenancy.DatabaseProperties;
+import org.eclipse.ecsp.sql.multitenancy.MultiTenantDatabaseProperties;
+import org.eclipse.ecsp.sql.multitenancy.TenantDatabaseProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Scope;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
-
+import org.springframework.stereotype.Component;
+import javax.annotation.Nullable;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.eclipse.ecsp.sql.dao.constants.PostgresDbConstants.FIVE_THOUSAND;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import static org.eclipse.ecsp.sql.dao.constants.PostgresDbConstants.ONE_WAY_TLS_AUTH_MECHANISM;
 import static org.postgresql.PGProperty.SSL;
 import static org.postgresql.PGProperty.SSL_MODE;
@@ -80,28 +86,34 @@ import static org.postgresql.PGProperty.SSL_ROOT_CERT;
 /**
  * Configuration class for managing PostgresDB connections using HikariCP.
  *
- * <p>This class provides the following functionalities:
+ * <p>
+ * This class provides the following functionalities:
  * <ul>
- *   <li>Configures a HikariCP connection pool for PostgresDB.</li>
- *   <li>Supports retry mechanisms for connection and datasource creation.</li>
- *   <li>Validates PostgresDB connection properties.</li>
- *   <li>Manages lifecycle events such as initialization and cleanup of connections and datasource.</li>
- *   <li>Supports one-way TLS authentication for secure communication with PostgresDB.</li>
- *   <li>Integrates with Spring for dependency injection and bean management.</li>
- *   <li>Exports health and metrics information for monitoring.</li>
- *   <li>Refreshes credentials if enabled.</li>
+ * <li>Configures a HikariCP connection pool for PostgresDB.</li>
+ * <li>Supports retry mechanisms for connection and datasource creation.</li>
+ * <li>Validates PostgresDB connection properties.</li>
+ * <li>Manages lifecycle events such as initialization and cleanup of connections and
+ * datasource.</li>
+ * <li>Supports one-way TLS authentication for secure communication with PostgresDB.</li>
+ * <li>Integrates with Spring for dependency injection and bean management.</li>
+ * <li>Exports health and metrics information for monitoring.</li>
+ * <li>Refreshes credentials if enabled.</li>
  * </ul>
  *
- * <p>This class ensures graceful shutdown of connections and the datasource during application termination.
+ * <p>
+ * This class ensures graceful shutdown of connections and the datasource during application
+ * termination.
  *
- * <p>Dependencies:
+ * <p>
+ * Dependencies:
  * <ul>
- *   <li>HikariCP for connection pooling</li>
- *   <li>Dropwizard Metrics for health and metrics monitoring</li>
- *   <li>Spring Framework for dependency injection</li>
+ * <li>HikariCP for connection pooling</li>
+ * <li>Dropwizard Metrics for health and metrics monitoring</li>
+ * <li>Spring Framework for dependency injection</li>
  * </ul>
  *
- * <p>Note: Ensure that all required PostgresDB properties are correctly configured in the environment.
+ * <p>
+ * Note: Ensure that all required PostgresDB properties are correctly configured in the environment.
  *
  * @author kaushalaroraharman
  * @version 1.1
@@ -109,196 +121,167 @@ import static org.postgresql.PGProperty.SSL_ROOT_CERT;
  */
 @Configuration
 @EnableScheduling
+@Component("postgresDbConfig")
 public class PostgresDbConfig {
+
+    /** Comma-separated list of tenant IDs */
+    @Value("#{'${" + MultitenantConstants.MULTI_TENANT_IDS + "}'.split(',')}")
+    private List<String> tenantIds;
+
+    /** Flag to enable or disable multi-tenancy */
+    @Value("${" + MultitenantConstants.MULTITENANCY_ENABLED + ":false}")
+    private boolean isMultitenancyEnabled;
 
     /** The Constant LOGGER. */
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresDbConfig.class);
 
-    /** The credentials provider. */
-    CredentialsProvider credentialsProvider;
-    
-    /** The connection. */
-    Connection connection;
-    
-    /** The data source. */
-    private DataSource dataSource;
+    /** Holder for tenantId -> DataSource. */
+    private final Map<Object, Object> targetDataSources = new ConcurrentHashMap<>();
+
+    /** Holder for tenantId -> CredentialsProvider. */
+    private final Map<String, CredentialsProvider> credsProviderMap = new ConcurrentHashMap<>();
+
+    /** Contains a map of tenant IDs to their database properties. */
+    @Autowired
+    private MultiTenantDatabaseProperties multiTenantDbProperties;
+
+    /** Configurations for default tenant. */
+    @Autowired(required = false)
+    private DatabaseProperties defaultDbProperties;
 
     /** The ctx. */
     @Autowired
     private ApplicationContext ctx;
 
-    /** Postgres DB properties. */
-    @Value("${" + PostgresDbConstants.POSTGRES_JDBC_URL + "}")
-    private String jdbcUrl;
-    
-    /** The user name. */
-    @Value("${" + PostgresDbConstants.POSTGRES_USERNAME + "}")
-    private String userName;
-    
-    /** The password. */
-    @Value("${" + PostgresDbConstants.POSTGRES_PASSWORD + "}")
-    private String password;
-    
-    /** The driver class name. */
-    @Value("${" + PostgresDbConstants.POSTGRES_DRIVER_CLASS_NAME + "}")
-    private String driverClassName;
-    
-    /** The pool name. */
-    @Value("${" + PostgresDbConstants.POSTGRES_POOL_NAME + "}")
-    private String poolName;
-    
-    /** The connection timeout ms. 
-     * Default: 60000ms
-     */
-    @Value("${" + PostgresDbConstants.POSTGRES_CONNECTION_TIMEOUT_MS + ":60000}")
-    private int connectionTimeoutMs;
-    
-    /**
-     * Minimum number of Connections a pool will maintain at any given time.
-     * Default: 1
-     */
-    @Value("${" + PostgresDbConstants.POSTGRES_MIN_POOL_SIZE + ":1}")
-    private int minPoolSize;
-    
-    /**
-     * Maximum number of Connections a pool will maintain at any given time.
-     * Default: 10
-     */
-    @Value("${" + PostgresDbConstants.POSTGRES_MAX_POOL_SIZE + ":10}")
-    private int maxPoolSize;
-    
-    /**
-     * Seconds a Connection can remain pooled but unused before being discarded. <br>
-     * Zero means idle connections never expire. <br>
-     * In second, after that time it will release the unused connections <br>
-     */
-    @Value("${" + PostgresDbConstants.POSTGRES_MAX_IDLE_TIME + "}")
-    private int maxIdleTime;
-    
-    /** The cache prep stmts. */
-    @Value("${" + PostgresDbConstants.POSTGRES_DS_CACHE_PREPARED_STATEMENTS_VALUE + "}")
-    private String cachePrepStmts;
-    
-    /** The prep stmt cache size. */
-    @Value("${" + PostgresDbConstants.POSTGRES_DS_PREPARED_STATEMENT_CACHE_SIZE_VALUE + "}")
-    private int prepStmtCacheSize;
-    
-    /** The prep stmt cache sql limit. */
-    @Value("${" + PostgresDbConstants.POSTGRES_DS_PREPARED_STATEMENT_CACHE_SQL_LIMIT_VALUE + "}")
-    private int prepStmtCacheSqlLimit;
-    
-    /** The expected 99 th percentile ms value. */
-    @Value("${" + HealthConstants.POSTGRES_EXPECTED_99_PI_MS_VALUE + ":60000}")
-    private String expected99thPercentileMsValue;
-    
-    /** The credential provider bean name. */
-    @Value("${" + CredentialsConstants.CREDENTIAL_PROVIDER_BEAN_NAME + " :defaultPostgresDbCredentialsProvider}")
-    private String credentialProviderBeanName;
-    
-    /** The flag representing credentials refresh enabled or not for postgres. */
-    @Value("${" + PostgresDbConstants.POSTGRES_CREDENTIALS_REFRESH_ENABLED + ":false}")
-    private boolean postgresCredRefreshEnabled;
-    
-    /** The data source retry count. 
-     * Default: 3
-     */
-    @Value("${postgres.datasource.create.retry.count:3}")
-    private int dataSourceRetryCount;
-    
-    /** The data source retry delay. */
-    @Value("${postgres.datasource.retry.delay.ms:10}")
-    private int dataSourceRetryDelay;
-    
-    /** The connection retry count. */
-    @Value("${postgres.connection.create.retry.count:3}")
-    private int connectionRetryCount;
-    
-    /** The connection retry delay. */
-    @Value("${postgres.connection.retry.delay.ms:10}")
-    private int connectionRetryDelay;
-
-    /** The auth mechanism. */
-    @Value("${postgres.auth.Mechanism:}")
-    private String authMechanism;
-
-    /** The ssl mode. */
-    @Value("${postgres.ssl.mode:prefer}")
-    private String sslMode;
-
-    /** The ssl response timeout. */
-    @Value("${postgres.ssl.timeout:" + FIVE_THOUSAND + "}")
-    private int sslResponseTimeout;
-
-    /** The root crt path. */
-    @Value("${postgres.ssl.root.crt:}")
-    private String rootCrtPath;
-
-    /**
-     * Set {@link CredentialsProvider} available in Spring context.
-     */
     @Autowired
-    public void setCredentialsProvider() {
-        credentialsProvider = (CredentialsProvider) ctx.getBean(credentialProviderBeanName);
+    private SqlDaoUtils utils;
+
+    /**
+     * Method for initializing and constructing target DataSources. If multitenancy is disabled,
+     * only the default, i.e. single DataSource is initialized. Else, tenantId
+     * specific DataSource is initialized.
+     */
+    @Bean("targetDataSources")
+    @DependsOn("credentialsProvider")
+    public Map<Object, Object> constructTargetDataSources() {
+        if (!isMultitenancyEnabled) {
+            LOGGER.info("Multitenancy is disabled. Default configuration will be used.");
+            try {
+                DataSource defaultDataSource =
+                        initDataSource(MultitenantConstants.DEFAULT_TENANT_ID, defaultDbProperties);
+                targetDataSources.put(MultitenantConstants.DEFAULT_TENANT_ID, defaultDataSource);
+            } catch (Exception e) {
+                LOGGER.error("Error initializing default DataSource", e);
+            }
+        } else {
+            LOGGER.info("Multitenancy is enabled. Initializing tenant-specific DataSources.");
+            initializeDataSourcesForTenants();
+        }
+        LOGGER.info("Initialization of target DataSources is complete.");
+        return targetDataSources;
     }
 
     /**
-     * Required Spring datasource bean for connecting to the database.
-     * <br>
-     *
-     * @return datasource
+     * Initializes DataSources for each tenant based on the provided tenant IDs.
      */
-    @Bean
-    @Scope(scopeName = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
-    public DataSource dataSource() {
-        LOGGER.info("Fetching dataSource bean...");
-        while (credentialsProvider.isRefreshInProgress()) {
-            LOGGER.info("DataSource credentials refresh is in progress."
-                    + " The current thread will wait for refresh to complete.");
-            try {
-                final int sleepTime = 50;
-                Thread.sleep(sleepTime);
-            } catch (InterruptedException e) {
-                LOGGER.error("Thread initializing dataSource waiting for refresh interrupted", e);
-                Thread.currentThread().interrupt();
+    private void initializeDataSourcesForTenants() {
+        int threadCount = tenantIds != null ? tenantIds.size() : 1;
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+        for (String tenantId : tenantIds) {
+            futures.add(CompletableFuture.runAsync(() -> {
+                try {
+                    DataSource tenantDataSource = initDataSource(tenantId,
+                            multiTenantDbProperties.getTenants().get(tenantId));
+                    targetDataSources.put(tenantId, tenantDataSource);
+                    LOGGER.info("Configured DataSource for tenant: {}", tenantId);
+                } catch (Exception e) {
+                    LOGGER.error("Error initializing DataSource for tenant: {}, exception: {} ",
+                            tenantId, e);
+                }
+            }, executor));
+        }
+        // Wait for all tasks to complete
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        executor.shutdown();
+    }
+
+    /**
+     * Get {@link CredentialsProvider}.
+     */
+    @Bean("credentialsProvider")
+    public Map<String, CredentialsProvider> getCredentialsProvider() {
+        if (!isMultitenancyEnabled) {
+            LOGGER.info("Multitenancy is disabled. Using default tenant credentials provider.");
+            credsProviderMap.put(MultitenantConstants.DEFAULT_TENANT_ID,
+                    (CredentialsProvider) utils.getClassInstance(defaultDbProperties.getCredentialProviderBeanName()));
+        } else {
+            for (String tenantId : tenantIds) {
+                DatabaseProperties tenantDbProperties =
+                        multiTenantDbProperties.getTenants().get(tenantId);
+                credsProviderMap.put(tenantId,
+                        (CredentialsProvider) utils.getClassInstance(tenantDbProperties.getCredentialProviderBeanName()));
             }
         }
-        if (null == dataSource) {
-            LOGGER.error("Datasource bean is not initialized");
-        }
-        return dataSource;
+        return credsProviderMap;
     }
 
     /**
-     * Refresh the PostgresDB credentials from a source and create pooled connections.
-     * <br>
-     * Scheduled to run at a fixed delay interval.
-     * <br>
-     * Retries for a specified number of times if the connection is not obtained.
-     * <br>
+     * Refresh the PostgresDB credentials from a source and create pooled connections. <br>
+     * Scheduled to run at a fixed delay interval. <br>
+     * Retries for a specified number of times if the connection is not obtained. <br>
      *
      * @throws SQLException - if there is an exception in connecting to the database.
      * @throws InterruptedException - if the connection is interrupted.
      */
-    @Scheduled(fixedDelayString = "${" + PostgresDbConstants.POSTGRES_REFRESH_CHECK_INTERVAL + ":86400000}")
+    @Scheduled(fixedDelayString = "${" + PostgresDbConstants.POSTGRES_REFRESH_CHECK_INTERVAL
+            + ":86400000}")
     public void postgresCredsRefreshJob() throws SQLException, InterruptedException {
-        if (!postgresCredRefreshEnabled) {
+        Map<String, TenantDatabaseProperties> tenants = multiTenantDbProperties.getTenants();
+        if (tenants == null || tenants.isEmpty()) {
+            LOGGER.info("Executing credentials refresh job for default tenant.");
+            executeCredsRefreshForTenant(MultitenantConstants.DEFAULT_TENANT_ID,
+                    defaultDbProperties);
+        } else {
+            for (String tenantId : tenants.keySet()) {
+                DatabaseProperties tenantDbProperties = tenants.get(tenantId);
+                LOGGER.info("Executing credentials refresh job for tenant: {}.", tenantId);
+                executeCredsRefreshForTenant(tenantId, tenantDbProperties);
+            }
+        }
+    }
+
+    private void executeCredsRefreshForTenant(String tenantId, DatabaseProperties props) {
+        CredentialsProvider credentialsProvider = credsProviderMap.get(tenantId);
+        if (!props.isPostgresCredRefreshEnabled()) {
             LOGGER.info("Postgres credentials refresh is disabled. Skipping the scheduled job.");
             return;
         }
         LOGGER.info("Starting Postgres refresh Job...");
         credentialsProvider.refreshCredentials();
-        LOGGER.info("Completed Postgres refresh Job.");
+        LOGGER.info("Completed Postgres refresh Job for tenant ID: {}.", tenantId);
 
-        userName = credentialsProvider.getUserName();
-        password = credentialsProvider.getPassword();
+        props.setUserName(credentialsProvider.getUserName());
+        props.setPassword(credentialsProvider.getPassword());
 
-        cleanupConnections();
+        LOGGER.debug("Cleaning up existing connections for tenant ID: {}.", tenantId);
+        cleanupConnections((DataSource) targetDataSources.get(tenantId));
         LOGGER.info("Creating connection with refreshed credentials...");
         try {
-            connection = createConnections();
-            LOGGER.info("Connection created successfully with refreshed credentials.");
+            Connection connection = createConnections(tenantId, props);
+            LOGGER.info(
+                    "Connection created successfully with refreshed credentials for tenant ID: {}.",
+                    tenantId);
         } catch (Exception exception) {
-            this.retryConnectionCreation();
+            try {
+                this.retryConnectionCreation(tenantId, props);
+            } catch (InterruptedException | SQLException e) {
+                LOGGER.error(
+                        "Exception occurred while retrying connection creation for tenant ID: {} "
+                                + "when refreshing credentials. Error is: {}",
+                        tenantId, e);
+            }
         }
     }
 
@@ -308,12 +291,21 @@ public class PostgresDbConfig {
      * @throws InterruptedException the interrupted exception
      * @throws SQLException the SQL exception
      */
-    private void retryConnectionCreation() throws InterruptedException, SQLException {
-        while (connectionRetryCount > 0 && !connection.isValid(1)) {
-            LOGGER.info("Retrying the connection creation");
-            connectionRetryCount--;
+    private void retryConnectionCreation(String tenantId, DatabaseProperties dbProperties)
+            throws InterruptedException, SQLException {
+        int connectionRetryCount = dbProperties.getConnectionRetryCount();
+        int connectionRetryDelay = dbProperties.getConnectionRetryDelay();
+        Connection connection;
+        do {
             try {
-                connection = createConnections();
+                LOGGER.info("Retrying the connection creation");
+                connectionRetryCount--;
+                dbProperties.setConnectionRetryCount(connectionRetryCount);
+                connection = createConnections(tenantId, dbProperties);
+                if (connection != null && !connection.isValid(1)) {
+                    Thread.sleep(connectionRetryDelay);
+                    continue;
+                }
             } catch (Exception e) {
                 if (connectionRetryCount == 0) {
                     LOGGER.error("All retry attempts are exhausted for connection creation with exception ", e);
@@ -322,24 +314,24 @@ public class PostgresDbConfig {
                 LOGGER.error("Exception occurred in retrying the connection creation", e);
                 Thread.sleep(connectionRetryDelay);
             }
-        }
+        } while (connectionRetryCount > 0);
     }
-
     /**
      * Creates the connections.
      *
      * @return the connection
      */
-    private Connection createConnections()  {
-        HikariDataSource hds = ((HikariDataSource) dataSource);
-        hds.setUsername(userName);
-        hds.setPassword(password);
+    private Connection createConnections(String tenantId, DatabaseProperties dbProperties) {
+        HikariDataSource hds = ((HikariDataSource) targetDataSources.get(tenantId));
+        hds.setUsername(dbProperties.getUserName());
+        hds.setPassword(dbProperties.getPassword());
         Connection conn = null;
         try {
             conn = hds.getConnection();
         } catch (Exception exception) {
             throw new SqlDaoException("Exception occurred in creating the connection", exception);
         } finally {
+            LOGGER.info("Printing connection details for tenant ID: {}.", tenantId);
             this.printConnections(hds.getHikariPoolMXBean());
         }
         return conn;
@@ -361,40 +353,52 @@ public class PostgresDbConfig {
      *
      * @throws InterruptedException , SQLException
      * @throws SQLException the SQL exception
-     */    
-    @PostConstruct
-    public void initDataSource() throws InterruptedException, SQLException {
+     */
+    public DataSource initDataSource(String tenantId, DatabaseProperties dbProperties)
+            throws InterruptedException, SQLException {
+        CredentialsProvider credsProvider = credsProviderMap.get(tenantId);
+        LOGGER.info("Initializing datasource for tenant: {}", tenantId);
         try {
-            userName = credentialsProvider.getUserName();
-            password = credentialsProvider.getPassword();
-            validate();
-            dataSource = createAndGetDataSource();
+            dbProperties.setUserName(credsProvider.getUserName());
+            dbProperties.setPassword(credsProvider.getPassword());
+            validate(dbProperties);
+            return createAndGetDataSource(dbProperties);
         } catch (Exception exception) {
-            LOGGER.error("Error occurred while creating the datasource", exception);
+            LOGGER.error("Error occurred while creating the datasource: {} for tenantId: {}",
+                    exception, tenantId);
+            int dataSourceRetryCount = dbProperties.getDataSourceRetryCount();
+            DataSource dataSource = (DataSource) targetDataSources.get(tenantId);
             while (dataSourceRetryCount > 0 && dataSource == null) {
-                userName = credentialsProvider.getUserName();
-                password = credentialsProvider.getPassword();
+                dbProperties.setUserName(credsProvider.getUserName());
+                dbProperties.setPassword(credsProvider.getPassword());
                 try {
                     --dataSourceRetryCount;
-                    LOGGER.info("Retrying datasource creation");
-                    dataSource = createAndGetDataSource();
+                    LOGGER.info("Retrying datasource creation for tenant: {}, attempts left: {}",
+                            tenantId, dataSourceRetryCount);
+                    dataSource = createAndGetDataSource(dbProperties);
+                    return dataSource;
                 } catch (Exception ex) {
                     if (dataSourceRetryCount == 0) {
-                        LOGGER.error("Failed to creating the datasource ", ex);
-                        throw new SqlDaoException("Retry Attempts exhausted for creating the datasource", ex);
+                        LOGGER.error("Failed to create the datasource for tenant: {}", tenantId,
+                                ex);
+                        throw new SqlDaoException(
+                                "Retry Attempts exhausted for creating the datasource", ex);
                     }
-                    LOGGER.error("Error occurred in creating the datasource with exception ", ex);
-                    Thread.sleep(dataSourceRetryDelay);
+                    LOGGER.error(
+                            "Error occurred in creating the datasource for tenant: {}, exception is: {}",
+                            tenantId, ex);
+                    Thread.sleep(dbProperties.getDataSourceRetryDelay());
                 }
             }
         }
         try {
             LOGGER.info("Creating datasource connection");
-            connection = dataSource.getConnection();
+            Connection connection = ((DataSource) targetDataSources.get(tenantId)).getConnection();
         } catch (Exception exception) {
             LOGGER.error("Exception occurred while creating connection ", exception);
-            this.retryConnectionCreation();
+            this.retryConnectionCreation(tenantId, dbProperties);
         }
+        return null;
     }
 
     /**
@@ -402,35 +406,39 @@ public class PostgresDbConfig {
      */
     @PreDestroy
     private void destroy() {
-        cleanupConnections();
-        cleanupDataSource();
+        LOGGER.info("Destroying Postgres connections and dataSources...");
+        for (Map.Entry<Object, Object> entry : targetDataSources.entrySet()) {
+            cleanupConnections((DataSource) entry.getValue());
+            cleanupDataSource((DataSource) entry.getValue());
+        }
     }
 
     /**
      * Validate Postgres configurations.
      */
-    private void validate() {
+    private void validate(DatabaseProperties dbProperties) {
 
         List<String> inValidConfAttributes = new ArrayList<>();
 
-        if (StringUtils.isEmpty(jdbcUrl)) {
+        if (StringUtils.isEmpty(dbProperties.getJdbcUrl())) {
             inValidConfAttributes.add(PostgresDbConstants.POSTGRES_JDBC_URL);
         }
-        if (StringUtils.isEmpty(userName)) {
+        if (StringUtils.isEmpty(dbProperties.getUserName())) {
             inValidConfAttributes.add(PostgresDbConstants.POSTGRES_USERNAME);
         }
-        if (StringUtils.isEmpty(password)) {
+        if (StringUtils.isEmpty(dbProperties.getPassword())) {
             inValidConfAttributes.add(PostgresDbConstants.POSTGRES_PASSWORD);
         }
-        if (StringUtils.isEmpty(driverClassName)) {
+        if (StringUtils.isEmpty(dbProperties.getDriverClassName())) {
             inValidConfAttributes.add(PostgresDbConstants.POSTGRES_DRIVER_CLASS_NAME);
         }
-        if (maxPoolSize == 0) {
+        if (dbProperties.getMaxPoolSize() == 0) {
             inValidConfAttributes.add(PostgresDbConstants.POSTGRES_MAX_POOL_SIZE);
         }
         if (!inValidConfAttributes.isEmpty()) {
-            throw new IllegalArgumentException("Missing or Invalid PostgresDB connection properties: "
-                    + inValidConfAttributes.toString());
+            throw new IllegalArgumentException(
+                    "Missing or Invalid PostgresDB connection properties: "
+                            + inValidConfAttributes.toString());
         }
     }
 
@@ -439,35 +447,43 @@ public class PostgresDbConfig {
      *
      * @return the data source
      */
-    private DataSource createAndGetDataSource() {
+    private DataSource createAndGetDataSource(DatabaseProperties dbProperties) {
 
         HikariConfig config = new HikariConfig();
 
-        config.setJdbcUrl(jdbcUrl);
-        config.setUsername(userName);
-        config.setPassword(password);
-        config.setDriverClassName(driverClassName);
-        config.setMaximumPoolSize(maxPoolSize);
-        config.setMinimumIdle(minPoolSize);
-        config.setIdleTimeout(maxIdleTime);
-        config.setPoolName(poolName);
-        config.setConnectionTimeout(connectionTimeoutMs);
-        config.addHealthCheckProperty(HealthConstants.POSTGRES_EXPECTED_99_PI_MS, expected99thPercentileMsValue);
-        config.addDataSourceProperty(PostgresDbConstants.POSTGRES_DS_CACHE_PREPARED_STATEMENTS, cachePrepStmts);
-        config.addDataSourceProperty(PostgresDbConstants.POSTGRES_DS_PREPARED_STATEMENT_CACHE_SIZE, prepStmtCacheSize);
-        config.addDataSourceProperty(PostgresDbConstants.POSTGRES_DS_PREPARED_STATEMENT_CACHE_SQL_LIMIT,
-                prepStmtCacheSqlLimit);
+        config.setJdbcUrl(dbProperties.getJdbcUrl());
+        config.setUsername(dbProperties.getUserName());
+        config.setPassword(dbProperties.getPassword());
+        config.setDriverClassName(dbProperties.getDriverClassName());
+        config.setMaximumPoolSize(dbProperties.getMaxPoolSize());
+        config.setMinimumIdle(dbProperties.getMinPoolSize());
+        config.setIdleTimeout(dbProperties.getMaxIdleTime());
+        config.setPoolName(dbProperties.getPoolName());
+        config.setConnectionTimeout(dbProperties.getConnectionTimeoutMs());
+        config.addHealthCheckProperty(HealthConstants.POSTGRES_EXPECTED_99_PI_MS,
+                dbProperties.getExpected99thPercentileMsValue());
+        config.addDataSourceProperty(PostgresDbConstants.POSTGRES_DS_CACHE_PREPARED_STATEMENTS,
+                dbProperties.getCachePrepStmts());
+        config.addDataSourceProperty(PostgresDbConstants.POSTGRES_DS_PREPARED_STATEMENT_CACHE_SIZE,
+                dbProperties.getPrepStmtCacheSize());
+        config.addDataSourceProperty(
+                PostgresDbConstants.POSTGRES_DS_PREPARED_STATEMENT_CACHE_SQL_LIMIT,
+                dbProperties.getPrepStmtCacheSqlLimit());
         config.setHealthCheckRegistry(new HealthCheckRegistry());
         config.setMetricRegistry(new MetricRegistry());
 
-        if (authMechanism.equalsIgnoreCase(ONE_WAY_TLS_AUTH_MECHANISM)) {
+        if (dbProperties.getAuthMechanism().equalsIgnoreCase(ONE_WAY_TLS_AUTH_MECHANISM)) {
             LOGGER.debug("One way ssl communication is enabled with postgres");
             config.addDataSourceProperty(SSL.getName(), Boolean.TRUE);
-            config.addDataSourceProperty(SSL_MODE.getName(), sslMode);
-            config.addDataSourceProperty(SSL_RESPONSE_TIMEOUT.getName(), sslResponseTimeout);
-            config.addDataSourceProperty(SSL_ROOT_CERT.getName(), rootCrtPath);
-            LOGGER.debug("Parameters passed are sslmode: {} , sslResponseTimeout: {} ,"
-                    + "sslRootCrtPath: {} ", sslMode, sslResponseTimeout, rootCrtPath);
+            config.addDataSourceProperty(SSL_MODE.getName(), dbProperties.getSslMode());
+            config.addDataSourceProperty(SSL_RESPONSE_TIMEOUT.getName(),
+                    dbProperties.getSslResponseTimeout());
+            config.addDataSourceProperty(SSL_ROOT_CERT.getName(), dbProperties.getRootCrtPath());
+            LOGGER.debug(
+                    "Parameters passed are sslmode: {} , sslResponseTimeout: {} ,"
+                            + "sslRootCrtPath: {} ",
+                    dbProperties.getSslMode(), dbProperties.getSslResponseTimeout(),
+                    dbProperties.getRootCrtPath());
         }
         return new HikariDataSource(config);
     }
@@ -475,7 +491,7 @@ public class PostgresDbConfig {
     /**
      * Cleanup data source.
      */
-    private void cleanupDataSource() {
+    private void cleanupDataSource(DataSource dataSource) {
         if (dataSource instanceof HikariDataSource hikariDataSource) {
             LOGGER.info("Closing data source...");
             hikariDataSource.close();
@@ -485,15 +501,16 @@ public class PostgresDbConfig {
     /**
      * Cleanup connections.
      */
-    private void cleanupConnections() {
+    private void cleanupConnections(DataSource dataSource) {
         LOGGER.info("Closing the connections");
         HikariDataSource hikariDataSource = (HikariDataSource) dataSource;
         HikariPoolMXBean hikariPoolMxBean = hikariDataSource.getHikariPoolMXBean();
         hikariPoolMxBean.softEvictConnections();
-        hikariDataSource.evictConnection(connection);
         try {
+            Connection conn = hikariDataSource.getConnection();
+            hikariDataSource.evictConnection(conn);
             dataSource.getConnection().close();
-            connection.close();
+            conn.close();
             LOGGER.info("connection closed successfully");
         } catch (Exception exception) {
             LOGGER.error("Exception occurred while closing the connection", exception);

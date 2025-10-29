@@ -39,6 +39,7 @@
 
 package org.eclipse.ecsp.sql;
 
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
@@ -70,6 +71,7 @@ import org.springframework.stereotype.Component;
  * @since 2025-04-15
  */
 @ComponentScan(basePackages = {"org.eclipse.ecsp"})
+@ConfigurationPropertiesScan(basePackages = {"org.eclipse.ecsp"})
 @Component
 @Configuration
 public class SqlDaoApplication {

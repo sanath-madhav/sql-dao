@@ -41,22 +41,24 @@ package org.eclipse.ecsp.sql.postgress.config;
 
 import org.awaitility.Awaitility;
 import org.awaitility.Durations;
+import org.eclipse.ecsp.sql.SqlDaoApplication;
 import org.eclipse.ecsp.sql.authentication.DefaultPostgresDbCredentialsProvider;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
-
+import io.prometheus.client.CollectorRegistry;
 import javax.sql.DataSource;
 import java.sql.SQLException;
-
+import java.util.Map;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -65,7 +67,8 @@ import static org.mockito.Mockito.verify;
  * Test class for {@link PostgresDbConfig}.
  */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { PostgresDbConfig.class, DefaultPostgresDbCredentialsProvider.class })
+@ContextConfiguration(classes = {PostgresDbConfig.class, DefaultPostgresDbCredentialsProvider.class,
+            SqlDaoApplication.class })
 @TestPropertySource("/application-dao-refresh-test.properties")
 class PostgresDbConfigRefreshTest {
 
@@ -75,7 +78,8 @@ class PostgresDbConfigRefreshTest {
 
     /** The data source. */
     @Autowired
-    private DataSource dataSource;
+    @Qualifier("targetDataSources")
+    private Map<Object, Object> targetDataSources;
     
     @SpyBean
     private PostgresDbConfig config;
@@ -92,6 +96,7 @@ class PostgresDbConfigRefreshTest {
      */
     @BeforeAll
     static void setUpPostgres() {
+        CollectorRegistry.defaultRegistry.clear();
         postgresqlContainer.start();
         System.setProperty("DB_URL", postgresqlContainer.getJdbcUrl());
     }
@@ -103,6 +108,7 @@ class PostgresDbConfigRefreshTest {
      */
     @Test
     void testConnection() throws SQLException {
+        DataSource dataSource = (DataSource) targetDataSources.get("default");
         assertNotNull(dataSource.getConnection());
         Awaitility.await()
             .atMost(Durations.FIVE_SECONDS)
@@ -115,6 +121,7 @@ class PostgresDbConfigRefreshTest {
      */
     @AfterAll
     static void tearUpPostgresServer() {
+        CollectorRegistry.defaultRegistry.clear();
         postgresqlContainer.stop();
     }
 }

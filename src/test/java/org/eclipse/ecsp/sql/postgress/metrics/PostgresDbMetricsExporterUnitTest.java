@@ -51,6 +51,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import org.eclipse.ecsp.sql.postgress.config.DefaultDbProperties;
 
 /**
  * Test class for {@link IgnitePostgresDbMetricsExporter}.
@@ -82,10 +83,12 @@ class PostgresDbMetricsExporterUnitTest {
     @Test
     void testMetrics() {
         MockitoAnnotations.openMocks(this);
+        DefaultDbProperties tenantHealthProps = new DefaultDbProperties();
+        tenantHealthProps.setPoolName("test");
+        ReflectionTestUtils.setField(exporter, "defaultTenantHealthProps", tenantHealthProps);
         ReflectionTestUtils.setField(exporter, "postgresDbMetricsEnabled", true);
         ReflectionTestUtils.setField(exporter, "threadInitialDelay", 0);
         ReflectionTestUtils.setField(exporter, "threadFrequency", 1);
-        ReflectionTestUtils.setField(exporter, "datasource", datasource);
         ReflectionTestUtils.setField(exporter, "postgresDbGauge", postgresDbGauge);
         ReflectionTestUtils.setField(exporter, "svc", "test");
         ReflectionTestUtils.setField(exporter, "nodeName", "localhost");
@@ -103,5 +106,4 @@ class PostgresDbMetricsExporterUnitTest {
         assertNotNull(datasource);
         exporter.close();
     }
-
 }

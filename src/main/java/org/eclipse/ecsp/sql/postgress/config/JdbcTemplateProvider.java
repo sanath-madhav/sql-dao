@@ -39,14 +39,19 @@
 
 package org.eclipse.ecsp.sql.postgress.config;
 
+import org.eclipse.ecsp.sql.dao.constants.MultitenantConstants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Configurable;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
-
+import java.util.HashMap;
+import java.util.Map;
 import javax.sql.DataSource;
 
 /**
@@ -57,30 +62,53 @@ import javax.sql.DataSource;
  */
 @Configurable
 @Configuration
-@Component
 public class JdbcTemplateProvider {
 
-    /** The data source. */
+    /** The target data sources for each tenantId. */
     @Autowired
-    private DataSource dataSource;
+    @Qualifier("targetDataSources")
+    private Map<Object, Object> targetDataSources;
+
+    /** Flag to enable or disable multi-tenancy */
+    @Value("${" + MultitenantConstants.MULTITENANCY_ENABLED + ":false}")
+    private boolean isMultitenancyEnabled;
 
     /**
-     * Jdbc template.
+     * Provides a map of tenant ID to Jdbc template.
      *
      * @return the jdbc template
      */
-    @Bean(name = "jdbcTemplate")
-    public JdbcTemplate jdbcTemplate() {
-        return new JdbcTemplate(dataSource);
+    @Bean("jdbcTemplates")
+    public Map<String, JdbcTemplate> constructJdbcTemplates() {
+        Map<String, JdbcTemplate> jdbcTemplates = new HashMap<>();
+        if (!isMultitenancyEnabled) {
+            jdbcTemplates.put(MultitenantConstants.DEFAULT_TENANT_ID, new JdbcTemplate(
+                    (DataSource) targetDataSources.get(MultitenantConstants.DEFAULT_TENANT_ID)));
+        } else {
+            for (Map.Entry<Object, Object> entry : targetDataSources.entrySet()) {
+                jdbcTemplates.put((String) entry.getKey(), new JdbcTemplate((DataSource) entry.getValue()));
+            }
+        }
+        return jdbcTemplates;
     }
 
     /**
-     * Jdbc Template Provider to run queries with named parameters.
+     * Provides a map of NamedParameterJdbcTemplate per tenant.
      *
-     * @return a named parameter jdbc template
+     * @return map of tenantId to NamedParameterJdbcTemplate
      */
-    @Bean
-    public NamedParameterJdbcTemplate namedParameterJdbcTemplate() {
-        return new NamedParameterJdbcTemplate(dataSource);
+    @Bean("namedParameterJdbcTemplates")
+    public Map<String, NamedParameterJdbcTemplate> constructNamedParameterJdbcTemplates() {
+        Map<String, NamedParameterJdbcTemplate> namedParameterJdbcTemplates = new HashMap<>();
+        if (!isMultitenancyEnabled) {
+            namedParameterJdbcTemplates.put(MultitenantConstants.DEFAULT_TENANT_ID,
+                new NamedParameterJdbcTemplate((DataSource) targetDataSources.get(MultitenantConstants.DEFAULT_TENANT_ID)));
+        } else {
+            for (Map.Entry<Object, Object> entry : targetDataSources.entrySet()) {
+                namedParameterJdbcTemplates.put((String) entry.getKey(),
+                    new NamedParameterJdbcTemplate((DataSource) entry.getValue()));
+            }
+        }
+        return namedParameterJdbcTemplates;
     }
 }

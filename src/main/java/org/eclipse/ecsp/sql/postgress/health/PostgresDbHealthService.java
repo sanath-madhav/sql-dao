@@ -47,9 +47,10 @@ import org.eclipse.ecsp.sql.dao.constants.PostgresDbConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-
+import java.util.Map;
 import javax.sql.DataSource;
 
 /**
@@ -65,8 +66,9 @@ public class PostgresDbHealthService {
 
     /** The datasource. */
     @Autowired
-    private DataSource datasource;
-    
+    @Qualifier("targetDataSources")
+    private Map<Object, Object> targetDataSources;
+
     /** The health service. */
     @Autowired
     private HealthService healthService;
@@ -74,7 +76,7 @@ public class PostgresDbHealthService {
     /** The restart on failure flag. */
     @Value("${sp.restart.on.failure:false}")
     private boolean restartOnFailure;
-    
+
     /** The pool name. */
     @Value("${" + PostgresDbConstants.POSTGRES_POOL_NAME + "}")
     private String poolName;
@@ -103,10 +105,16 @@ public class PostgresDbHealthService {
         @Override
         public boolean performRestart() {
             if (restartOnFailure) {
-                ((HikariDataSource) datasource).close();
+                for (Map.Entry<Object, Object> entry : targetDataSources.entrySet()) {
+                    String tenantId = (String) entry.getKey();
+                    DataSource dataSource = (DataSource) entry.getValue();
+                    LOGGER.info("Closing HikariDataSource for tenant: {}", tenantId);
+                    ((HikariDataSource) dataSource).close();
+                    LOGGER.info("HikariDataSource for tenant: {} closed successfully.", tenantId);
+                    return true;
+                }
             }
             return restartOnFailure;
         }
     }
-
 }
