@@ -14,7 +14,7 @@ jobs:
   secret-presence:
     runs-on: ubuntu-latest
     outputs:
-      CENTRAL_SONATYPE_TOKEN_PASSWORD : ${{ steps.secret-presence.outputs.CENTRAL_SONATYPE_TOKEN_PASSWORD  }}
+      HAS_CENTRAL_SONATYPE_SECRETS : ${{ steps.secret-presence.outputs.HAS_CENTRAL_SONATYPE_SECRETS  }}
     steps:
       - name: Check whether secrets exist
         id: secret-presence
@@ -23,7 +23,7 @@ jobs:
           [ ! -z "${{ secrets.GPG_PRIVATE_KEY }}" ] && 
           [ ! -z "${{ secrets.CENTRAL_SONATYPE_TOKEN_USERNAME }}" ] && 
           [ ! -z "${{ secrets.CENTRAL_SONATYPE_TOKEN_PASSWORD }}" ]  && 
-          echo "CENTRAL_SONATYPE_TOKEN_PASSWORD =true" >> $GITHUB_OUTPUT
+          echo "HAS_CENTRAL_SONATYPE_SECRETS=true" >> $GITHUB_OUTPUT
           exit 0
           
   publish-to-sonatype:
@@ -35,7 +35,7 @@ jobs:
     needs: [ secret-presence ]
 
     if: |
-      needs.secret-presence.outputs.CENTRAL_SONATYPE_TOKEN_PASSWORD 
+      needs.secret-presence.outputs.HAS_CENTRAL_SONATYPE_SECRETS 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
