@@ -50,16 +50,18 @@ import org.springframework.jdbc.datasource.lookup.AbstractRoutingDataSource;
 /**
  * Custom AbstractRoutingDataSource for Multi-tenancy which routes database
  * connections based on the current tenant context.
- * This class extends Spring's AbstractRoutingDataSource to provide
+ *
+ * <p>This class extends Spring's AbstractRoutingDataSource to provide
  * tenant-specific database routing. The tenant context is determined by the
- * TenantContext class.
- * Database routing flow:
- * <li>1. TenantContext.setCurrentTenant(tenantId) stores tenant in
- * thread-local.</li>
- * <li>2. This router's determineCurrentLookupKey() returns current tenant
- * ID.</li>
- * <li>3. Spring routes database operations to tenant-specific DataSource</li>
- * <li>4. TenantContext.clear() clears context after request completion</li>
+ * TenantContext class.</p>
+ *
+ * <p>Database routing flow:</p>
+ * <ol>
+ * <li>TenantContext.setCurrentTenant(tenantId) stores tenant in thread-local</li>
+ * <li>This router's determineCurrentLookupKey() returns current tenant ID</li>
+ * <li>Spring routes database operations to tenant-specific DataSource</li>
+ * <li>TenantContext.clear() clears context after request completion</li>
+ * </ol>
  *
  * @author hbadshah
  */

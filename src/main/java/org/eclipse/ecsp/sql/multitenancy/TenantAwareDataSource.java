@@ -49,6 +49,15 @@ import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 
+/**
+ * Component responsible for initializing and configuring tenant-aware data source routing.
+ *
+ * <p>This class manages the initialization of {@link TenantRoutingDataSource} based on
+ * whether multi-tenancy is enabled. In single-tenant mode, it sets up a default data source.
+ * In multi-tenant mode, it configures routing to multiple tenant-specific data sources.</p>
+ *
+ * @author hbadshah
+ */
 @Component
 public class TenantAwareDataSource {
 
@@ -61,6 +70,17 @@ public class TenantAwareDataSource {
     @Qualifier("targetDataSources")
     private Map<Object, Object> targetDataSources;
 
+    /**
+     * Initializes the tenant routing data source after bean construction.
+     *
+     * <p>This method is called automatically after dependency injection is complete.
+     * It configures the {@link TenantRoutingDataSource} with appropriate target data sources
+     * based on whether multi-tenancy is enabled.</p>
+     *
+     * <p>For single-tenant mode, it sets both the target data sources map and the default
+     * data source. For multi-tenant mode, it only sets the target data sources map, allowing
+     * dynamic routing based on the current tenant context.</p>
+     */
     @PostConstruct
     public void initTenantRoutingDataSource() {
         logger.info("Initializing TenantAwareDataSource");

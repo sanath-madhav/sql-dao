@@ -160,6 +160,8 @@ public class PostgresDbConfig {
      * Method for initializing and constructing target DataSources. If multitenancy is disabled,
      * only the default, i.e. single DataSource is initialized. Else, tenantId
      * specific DataSource is initialized.
+     *
+     * @return Map of tenant IDs to their corresponding DataSource objects
      */
     @Bean("targetDataSources")
     @DependsOn("credentialsProvider")
@@ -209,6 +211,8 @@ public class PostgresDbConfig {
 
     /**
      * Get {@link CredentialsProvider}.
+     *
+     * @return Map of tenant IDs to their corresponding CredentialsProvider instances
      */
     @Bean("credentialsProvider")
     public Map<String, CredentialsProvider> getCredentialsProvider() {
@@ -351,8 +355,11 @@ public class PostgresDbConfig {
     /**
      * This method will create datasource and connection using the provided parameters.
      *
-     * @throws InterruptedException , SQLException
-     * @throws SQLException the SQL exception
+     * @param tenantId The unique identifier for the tenant
+     * @param dbProperties Database properties configuration for the tenant
+     * @return DataSource instance configured for the specified tenant
+     * @throws InterruptedException if the thread is interrupted while waiting
+     * @throws SQLException if a database access error occurs
      */
     public DataSource initDataSource(String tenantId, DatabaseProperties dbProperties)
             throws InterruptedException, SQLException {
