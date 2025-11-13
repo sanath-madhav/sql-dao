@@ -70,7 +70,7 @@ public class TenantContext {
      *
      * @return current tenant ID or default if not set
      */
-    public static String getCurrentTenant() {
+    public static String getCurrentTenant() throws TenantNotFoundException {
         String tenant = CURRENT_TENANT.get();
         if (tenant == null) {
             LOGGER.error("No tenant found in context in multitenant mode.");
@@ -84,13 +84,11 @@ public class TenantContext {
      *
      * @param tenant the tenant ID to set
      */
-    public static void setCurrentTenant(String tenant) {
+    public static void setCurrentTenant(String tenant) throws TenantNotFoundException {
         boolean isMultitenancyEnabled = Boolean.parseBoolean(System.getProperty(MultitenantConstants.MULTITENANCY_ENABLED));
         if (!isMultitenancyEnabled) {
             LOGGER.info("Multitenancy is disabled. Setting default tenant.");
-            if (tenant == null || tenant.trim().isEmpty()) {
-                tenant = DEFAULT_TENANT_ID;
-            }
+            tenant = DEFAULT_TENANT_ID;
         } else if (tenant == null || tenant.trim().isEmpty()) {
             LOGGER.error("Attempted to set null or empty tenant in multitenant mode.");
             throw new TenantNotFoundException("Tenant ID cannot be null or empty in multitenant mode.");
