@@ -130,6 +130,9 @@ class PostgresDbConfigMultiTenantIntegrationTest {
     static void setUpContainers() {
         CollectorRegistry.defaultRegistry.clear();
         
+        // Enable multitenancy for TenantContext
+        System.setProperty("multitenancy.enabled", "true");
+        
         // Start all containers
         tenant1Container.start();
         tenant2Container.start();

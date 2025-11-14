@@ -120,6 +120,7 @@ class TenantContextTest {
     @Test
     @DisplayName("Should set and get tenant correctly")
     void testSetAndGetCurrentTenant() {
+        System.setProperty("multitenancy.enabled", "true");
         // When: Setting a tenant
         TenantContext.setCurrentTenant(TEST_TENANT_1);
 
@@ -255,6 +256,7 @@ class TenantContextTest {
     @Test
     @DisplayName("Should allow changing tenant multiple times")
     void testMultipleTenantChanges() {
+        System.setProperty("multitenancy.enabled", "true");
         // Given: First tenant set
         TenantContext.setCurrentTenant(TEST_TENANT_1);
         assertEquals(TEST_TENANT_1, TenantContext.getCurrentTenant());
@@ -270,6 +272,7 @@ class TenantContextTest {
     @Test
     @DisplayName("Should isolate tenant context across threads")
     void testThreadIsolation() throws InterruptedException {
+        System.setProperty("multitenancy.enabled", "true");
         // Given: Main thread has tenant1
         TenantContext.setCurrentTenant(TEST_TENANT_1);
 
@@ -295,6 +298,7 @@ class TenantContextTest {
     @Test
     @DisplayName("Should handle concurrent access from multiple threads")
     void testConcurrentAccess() throws InterruptedException {
+        System.setProperty("multitenancy.enabled", "true");
         ExecutorService executor = Executors.newFixedThreadPool(5);
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(5);
@@ -365,6 +369,7 @@ class TenantContextTest {
     @Test
     @DisplayName("Should preserve tenant during exception in same thread")
     void testTenantPreservationDuringException() {
+        System.setProperty("multitenancy.enabled", "true");
         // Given: Tenant is set
         TenantContext.setCurrentTenant(TEST_TENANT_1);
 
@@ -381,6 +386,7 @@ class TenantContextTest {
     @Test
     @DisplayName("Should properly cleanup in try-with-resources pattern simulation")
     void testTryWithResourcesPattern() {
+        System.setProperty("multitenancy.enabled", "true");
         // Simulate typical usage pattern with explicit cleanup
         try {
             TenantContext.setCurrentTenant(TEST_TENANT_1);

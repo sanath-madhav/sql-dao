@@ -41,11 +41,14 @@ package org.eclipse.ecsp.sql.multitenancy;
 
 import java.util.Map;
 import java.util.logging.Logger;
+import javax.sql.DataSource;
 import org.eclipse.ecsp.sql.dao.constants.MultitenantConstants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 
@@ -71,18 +74,21 @@ public class TenantAwareDataSource {
     private Map<Object, Object> targetDataSources;
 
     /**
-     * Initializes the tenant routing data source after bean construction.
+     * Initializes the tenant routing data source as a Spring Bean.
      *
-     * <p>This method is called automatically after dependency injection is complete.
-     * It configures the {@link TenantRoutingDataSource} with appropriate target data sources
-     * based on whether multi-tenancy is enabled.</p>
+     * <p>This method creates and configures the {@link TenantRoutingDataSource} with appropriate 
+     * target data sources based on whether multi-tenancy is enabled.</p>
      *
      * <p>For single-tenant mode, it sets both the target data sources map and the default
      * data source. For multi-tenant mode, it only sets the target data sources map, allowing
      * dynamic routing based on the current tenant context.</p>
+     * 
+     * @return Configured DataSource instance
      */
-    @PostConstruct
-    public void initTenantRoutingDataSource() {
+    @Bean
+    @Primary
+    @DependsOn("targetDataSources")
+    public DataSource dataSource() {
         logger.info("Initializing TenantAwareDataSource");
         TenantRoutingDataSource tenantRoutingDataSource = new TenantRoutingDataSource();
         if (!isMultitenancyEnabled) {
@@ -96,5 +102,6 @@ public class TenantAwareDataSource {
         }
         tenantRoutingDataSource.afterPropertiesSet();
         logger.info("TenantAwareDataSource initialized successfully.");
+        return tenantRoutingDataSource;
     }
 }

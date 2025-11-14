@@ -54,6 +54,7 @@ import org.eclipse.ecsp.sql.dao.utils.SqlDaoUtils;
 import org.eclipse.ecsp.sql.exception.SqlDaoException;
 import org.eclipse.ecsp.sql.multitenancy.DatabaseProperties;
 import org.eclipse.ecsp.sql.multitenancy.MultiTenantDatabaseProperties;
+import org.eclipse.ecsp.sql.multitenancy.TenantContext;
 import org.eclipse.ecsp.sql.multitenancy.TenantDatabaseProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -166,6 +167,9 @@ public class PostgresDbConfig {
     @Bean("targetDataSources")
     @DependsOn("credentialsProvider")
     public Map<Object, Object> constructTargetDataSources() {
+        // Initialize TenantContext with multitenancy flag
+        TenantContext.initialize(isMultitenancyEnabled);
+        
         if (!isMultitenancyEnabled) {
             LOGGER.info("Multitenancy is disabled. Default configuration will be used.");
             try {
