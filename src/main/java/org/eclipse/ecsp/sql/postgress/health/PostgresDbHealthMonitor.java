@@ -143,8 +143,14 @@ public class PostgresDbHealthMonitor implements HealthMonitor {
             HealthCheckRegistry healthCheckRegistry =
                     (HealthCheckRegistry) ((HikariDataSource) datasource).getHealthCheckRegistry();
             for (String healthCheckName : healthCheckList) {
-                HealthCheck.Result healthCheckResult =
-                        healthCheckRegistry.getHealthCheck(healthCheckName).execute();
+                HealthCheck healthCheck = healthCheckRegistry.getHealthCheck(healthCheckName);
+                if (healthCheck == null) {
+                    logger.error("Health check '{}' not found in registry for tenantId: {}. " +
+                            "Available health checks: {}", 
+                            healthCheckName, tenantId, healthCheckRegistry.getNames());
+                    return false;
+                }
+                HealthCheck.Result healthCheckResult = healthCheck.execute();
                 logger.info("Health check result for {} - {} for tenantID - {} - isHealthy: {}",
                                 HealthConstants.HEALTH_POSTGRES_DB_MONITOR_NAME, healthCheckName, tenantId,
                         healthCheckResult.isHealthy());
