@@ -104,7 +104,7 @@
 		<sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco-ut/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
 		<sonar.language>java</sonar.language>
 		<checkstyle.version>10.13.0</checkstyle.version>
-		<maven.checkstyle.version>3.3.1</maven.checkstyle.version>
+		<maven.checkstyle.version>3.6.0</maven.checkstyle.version>
 		<checkstyle.config.location>${project.basedir}/checkstyle.xml</checkstyle.config.location>
 		<checkstyle.suppressions.location>${project.basedir}/checkstyle-suppressions.xml
 		</checkstyle.suppressions.location>
