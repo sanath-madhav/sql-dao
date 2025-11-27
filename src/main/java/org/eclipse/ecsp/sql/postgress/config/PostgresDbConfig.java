@@ -154,6 +154,7 @@ public class PostgresDbConfig {
     @Autowired
     private ApplicationContext ctx;
 
+    /** Utility class for SQL DAO. */
     @Autowired
     private SqlDaoUtils utils;
 
@@ -306,7 +307,8 @@ public class PostgresDbConfig {
         Connection connection;
         do {
             try {
-                LOGGER.info("Retrying the connection creation");
+                LOGGER.info("Retrying the connection creation for tenant ID: {}. Attempts left: {}",
+                        tenantId, connectionRetryCount);
                 connectionRetryCount--;
                 dbProperties.setConnectionRetryCount(connectionRetryCount);
                 connection = createConnections(tenantId, dbProperties);
@@ -336,8 +338,9 @@ public class PostgresDbConfig {
         Connection conn = null;
         try {
             conn = hds.getConnection();
+            LOGGER.info("Connection created successfully for tenantId: {}", tenantId);
         } catch (Exception exception) {
-            throw new SqlDaoException("Exception occurred in creating the connection", exception);
+            throw new SqlDaoException("Exception occurred in creating the connection for tenantId: " + tenantId, exception);
         } finally {
             LOGGER.info("Printing connection details for tenant ID: {}.", tenantId);
             this.printConnections(hds.getHikariPoolMXBean());
@@ -390,23 +393,21 @@ public class PostgresDbConfig {
                     return dataSource;
                 } catch (Exception ex) {
                     if (dataSourceRetryCount == 0) {
-                        LOGGER.error("Failed to create the datasource for tenant: {}", tenantId,
-                                ex);
-                        throw new SqlDaoException(
-                                "Retry Attempts exhausted for creating the datasource", ex);
+                        LOGGER.error("Failed to create the datasource for tenant: {}", tenantId, ex);
+                        throw new SqlDaoException("Retry Attempts exhausted for creating the datasource", ex);
                     }
-                    LOGGER.error(
-                            "Error occurred in creating the datasource for tenant: {}, exception is: {}",
+                    LOGGER.error( "Error occurred in creating the datasource for tenant: {}, exception is: {}",
                             tenantId, ex);
                     Thread.sleep(dbProperties.getDataSourceRetryDelay());
                 }
             }
         }
         try {
-            LOGGER.info("Creating datasource connection");
             Connection connection = ((DataSource) targetDataSources.get(tenantId)).getConnection();
+            LOGGER.info("Datasource and connection created successfully for tenantId: {}", tenantId);
         } catch (Exception exception) {
-            LOGGER.error("Exception occurred while creating connection ", exception);
+            LOGGER.error( "Exception occurred while creating connection for tenantId: {}, exception is: {}",
+                    tenantId, exception);
             this.retryConnectionCreation(tenantId, dbProperties);
         }
         return null;

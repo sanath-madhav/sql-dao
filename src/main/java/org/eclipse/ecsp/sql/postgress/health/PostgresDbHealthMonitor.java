@@ -55,6 +55,7 @@ import org.eclipse.ecsp.utils.logger.IgniteLoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
@@ -69,8 +70,12 @@ import java.util.Map;
  * PostgresDB.
  * <br>
  * Callback for restart on unhealthy health monitor is implemented by {@link PostgresDbHealthService}
+ * <br>
+ * This component depends on PostgresDbConfig to ensure targetDataSources map is fully initialized
+ * before health checks are registered.
  */
 @Component
+@DependsOn("postgresDbConfig")
 public class PostgresDbHealthMonitor implements HealthMonitor {
 
     /** The logger. */

@@ -49,6 +49,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 import java.util.Map;
 import javax.sql.DataSource;
@@ -57,8 +58,12 @@ import javax.sql.DataSource;
  * Health service customization for PostgresDB.
  * <br>
  * It provides restart callback to the {@link HealthService}
+ * <br>
+ * This component depends on {@code postgresDbConfig} bean to ensure that the datasources
+ * are initialized before health service callbacks are registered.
  */
 @Component
+@DependsOn("postgresDbConfig")
 public class PostgresDbHealthService {
 
     /** The Constant LOGGER. */
