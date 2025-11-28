@@ -132,4 +132,13 @@ public class TenantContext {
     public static boolean hasTenant() {
         return CURRENT_TENANT.get() != null;
     }
+
+    /**
+     * Check if multitenancy is enabled.
+     *
+     * @return true if multitenancy is enabled, false otherwise
+     */
+    public static boolean isMultitenancyEnabled() {
+        return multitenancyEnabled;
+    }
 }

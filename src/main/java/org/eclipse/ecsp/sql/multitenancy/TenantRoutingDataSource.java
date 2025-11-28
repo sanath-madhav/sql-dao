@@ -81,8 +81,7 @@ public class TenantRoutingDataSource extends AbstractRoutingDataSource {
      */
     @Override
     protected Object determineCurrentLookupKey() {
-        boolean isMultitenancyEnabled = Boolean.parseBoolean(System.getProperty(MultitenantConstants.MULTITENANCY_ENABLED));
-        if (!isMultitenancyEnabled) {
+        if (!TenantContext.isMultitenancyEnabled()) {
             LOGGER.info("Multitenancy is disabled. Using default tenant.");
             return MultitenantConstants.DEFAULT_TENANT_ID;
         } else {
