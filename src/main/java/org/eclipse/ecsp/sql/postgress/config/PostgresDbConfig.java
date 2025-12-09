@@ -459,7 +459,7 @@ public class PostgresDbConfig {
      *
      * @return the data source
      */
-    private DataSource createAndGetDataSource(DatabaseProperties dbProperties) {
+    public DataSource createAndGetDataSource(DatabaseProperties dbProperties) {
 
         HikariConfig config = new HikariConfig();
 
@@ -503,7 +503,7 @@ public class PostgresDbConfig {
     /**
      * Cleanup data source.
      */
-    private void cleanupDataSource(DataSource dataSource) {
+    public void cleanupDataSource(DataSource dataSource) {
         if (dataSource instanceof HikariDataSource hikariDataSource) {
             LOGGER.info("Closing data source...");
             hikariDataSource.close();
@@ -513,7 +513,7 @@ public class PostgresDbConfig {
     /**
      * Cleanup connections.
      */
-    private void cleanupConnections(DataSource dataSource) {
+    public void cleanupConnections(DataSource dataSource) {
         LOGGER.info("Closing the connections");
         HikariDataSource hikariDataSource = (HikariDataSource) dataSource;
         HikariPoolMXBean hikariPoolMxBean = hikariDataSource.getHikariPoolMXBean();
