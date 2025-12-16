@@ -52,12 +52,12 @@ import java.util.Map;
  * 
  * <p>Property binding happens via @ConfigurationProperties in MultiTenantDatabaseProperties:
  * <ul>
- *   <li>tenant.tenants.tenant1.user-name=root</li>
- *   <li>tenant.tenants.tenant1.password=root</li>
- *   <li>tenant.tenants.tenant2.user-name=root</li>
- *   <li>tenant.tenants.tenant2.password=root</li>
- *   <li>tenant.tenants.tenant3.user-name=root</li>
- *   <li>tenant.tenants.tenant3.password=root</li>
+ *   <li>tenants.profile.tenant1.user-name=root</li>
+ *   <li>tenants.profile.tenant1.password=root</li>
+ *   <li>tenants.profile.tenant2.user-name=root</li>
+ *   <li>tenants.profile.tenant2.password=root</li>
+ *   <li>tenants.profile.tenant3.user-name=root</li>
+ *   <li>tenants.profile.tenant3.password=root</li>
  * </ul>
  * </p>
  * 
@@ -92,7 +92,7 @@ public class PostgresMultiTenantCredentialsProvider implements CredentialsProvid
      * 
      * <p>Since TenantDatabaseProperties already contains the username from the properties file,
      * and PostgresDbConfig will override it with this value anyway, we just return a default.
-     * The actual value comes from tenant.tenants.{tenantId}.user-name in the properties file.</p>
+     * The actual value comes from tenants.profile.{tenantId}.user-name in the properties file.</p>
      * 
      * <p>PostgresDbConfig calls this method and then does:
      * {@code dbProperties.setUserName(credsProvider.getUserName())}</p>
@@ -112,7 +112,7 @@ public class PostgresMultiTenantCredentialsProvider implements CredentialsProvid
      * 
      * <p>Since TenantDatabaseProperties already contains the password from the properties file,
      * and PostgresDbConfig will override it with this value anyway, we just return a default.
-     * The actual value comes from tenant.tenants.{tenantId}.password in the properties file.</p>
+     * The actual value comes from tenants.profile.{tenantId}.password in the properties file.</p>
      * 
      * <p>PostgresDbConfig calls this method and then does:
      * {@code dbProperties.setPassword(credsProvider.getPassword())}</p>

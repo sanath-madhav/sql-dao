@@ -171,7 +171,7 @@ public class IgnitePostgresDbMetricsExporter {
             LOGGER.info("Created Metrics list for default tenant: {}", metricsList);
         } else {
             for (Map.Entry<String, TenantDatabaseProperties> entry 
-                    : multiTenantHealthProps.getTenants().entrySet()) {
+                    : multiTenantHealthProps.getProfile().entrySet()) {
                 TenantDatabaseProperties tenantHealthProps = entry.getValue();
                 metricsList.add(tenantHealthProps.getPoolName() + MetricsConstants.POSTGRES_METRIC_TOTAL_CONNECTIONS);
                 metricsList.add(tenantHealthProps.getPoolName() + MetricsConstants.POSTGRES_METRIC_ACTIVE_CONNECTIONS);

@@ -295,7 +295,7 @@ class PostgresDbConfigMultiTenantIntegrationTest {
     @DisplayName("Should verify tenant-specific connection pool configuration")
     void testTenantSpecificPoolConfiguration() {
         // Given: Each tenant has different pool configuration
-        Map<String, TenantDatabaseProperties> tenants = multiTenantDatabaseProperties.getTenants();
+        Map<String, TenantDatabaseProperties> tenants = multiTenantDatabaseProperties.getProfile();
         
         // Then: Verify tenant configurations are loaded correctly
         assertNotNull(tenants, "Tenants configuration should not be null");

@@ -55,9 +55,9 @@ import lombok.Setter;
  */
 @Getter
 @Setter
-@ConfigurationProperties(prefix = "tenant")
+@ConfigurationProperties(prefix = "tenants")
 public class MultiTenantDatabaseProperties {
 
     /** Map of tenant IDs to their database properties */
-    private Map<String, TenantDatabaseProperties> tenants = new HashMap<>();
+    private Map<String, TenantDatabaseProperties> profile = new HashMap<>();
 }

@@ -1,0 +1,291 @@
+@startuml SQL-DAO Multi-Tenancy Architecture
+
+!define CORE_COLOR #E1F5FF
+!define CONFIG_COLOR #FFF4E1
+!define AUTH_COLOR #E8F5E9
+!define EXCEPTION_COLOR #FFEBEE
+!define UTIL_COLOR #F3E5F5
+
+' Core Multi-Tenancy Components
+package "org.eclipse.ecsp.sql.multitenancy" CORE_COLOR {
+    class TenantAwareDataSource <<@Component>> {
+        - logger : Logger
+        - isMultitenancyEnabled : boolean
+        - targetDataSources : Map<Object, Object>
+        - postgresDbConfig : PostgresDbConfig
+        - tenantRoutingDataSource : TenantRoutingDataSource
+        --
+        + dataSource() : DataSource <<@Bean>>
+        + addOrUpdateTenantDataSource(tenantId, props) : boolean <<synchronized>>
+        + removeTenantDataSource(tenantId) : boolean <<synchronized>>
+        - createTenantRoutingDataSource() : TenantRoutingDataSource
+        - refreshTenantRoutingDataSource() : void
+        - closeConnection(tenantId) : void
+    }
+
+    class TenantRoutingDataSource {
+        + LOGGER : IgniteLogger
+        --
+        # determineCurrentLookupKey() : Object
+        # determineTargetDataSource() : DataSource
+    }
+
+    class TenantContext {
+        - {static} CURRENT_TENANT : ThreadLocal<String>
+        - {static} DEFAULT_TENANT_ID : String
+        - {static} multitenancyEnabled : boolean
+        --
+        + {static} initialize(enabled : boolean) : void
+        + {static} getCurrentTenant() : String
+        + {static} setCurrentTenant(tenant : String) : void
+        + {static} clear() : void
+        + {static} isMultitenancyEnabled() : boolean
+    }
+
+    interface DatabaseProperties {
+        + getJdbcUrl() : String
+        + setJdbcUrl(url : String) : void
+        + getUserName() : String
+        + setUserName(name : String) : void
+        + getPassword() : String
+        + setPassword(pwd : String) : void
+        + getDriverClassName() : String
+        + getPoolName() : String
+        + getConnectionTimeoutMs() : int
+        + getMinPoolSize() : int
+        + getMaxPoolSize() : int
+        + getMaxIdleTime() : int
+        + getCredentialProviderBeanName() : String
+        + isPostgresCredRefreshEnabled() : boolean
+        + getDataSourceRetryCount() : int
+        + getDataSourceRetryDelay() : int
+        + getConnectionRetryCount() : int
+        + getConnectionRetryDelay() : int
+        + getAuthMechanism() : String
+        + getSslMode() : String
+        + getSslResponseTimeout() : int
+        + getRootCrtPath() : String
+    }
+
+    class TenantDatabaseProperties <<@Getter @Setter>> {
+        - jdbcUrl : String
+        - userName : String
+        - password : String
+        - driverClassName : String
+        - poolName : String
+        - connectionTimeoutMs : int
+        - minPoolSize : int
+        - maxPoolSize : int
+        - maxIdleTime : int
+        - credentialProviderBeanName : String
+        - postgresCredRefreshEnabled : boolean
+        - dataSourceRetryCount : int
+        - dataSourceRetryDelay : int
+        - connectionRetryCount : int
+        - connectionRetryDelay : int
+        - authMechanism : String
+        - sslMode : String
+        - sslResponseTimeout : int
+        - rootCrtPath : String
+    }
+
+    class MultiTenantDatabaseProperties <<@ConfigurationProperties>> {
+        - tenants : Map<String, TenantDatabaseProperties>
+        --
+        + getProfile() : Map
+        + setProfile(profile : Map) : void
+    }
+}
+
+' PostgreSQL Configuration
+package "org.eclipse.ecsp.sql.postgress.config" CONFIG_COLOR {
+    class PostgresDbConfig <<@Configuration>> {
+        - tenantIds : List<String>
+        - isMultitenancyEnabled : boolean
+        - targetDataSources : Map<Object, Object>
+        - credsProviderMap : Map<String, CredentialsProvider>
+        - multiTenantDbProperties : MultiTenantDatabaseProperties
+        - defaultDbProperties : DatabaseProperties
+        - ctx : ApplicationContext
+        - utils : SqlDaoUtils
+        --
+        + constructTargetDataSources() : Map<Object, Object> <<@Bean>>
+        + createAndGetDataSource(props : DatabaseProperties) : DataSource
+        + cleanupDataSource(dataSource : DataSource) : void
+        - initializeDataSourcesForTenants() : void
+    }
+}
+
+' Authentication
+package "org.eclipse.ecsp.sql.authentication" AUTH_COLOR {
+    interface CredentialsProvider {
+        + getUserName() : String
+        + getPassword() : String
+        + getAllCredentialsConfig() : Map<String, Object>
+        + refreshCredentials() : void
+        + isRefreshInProgress() : boolean
+    }
+
+    interface PostgresDbCredentialsProvider {
+    }
+
+    class DefaultPostgresDbCredentialsProvider {
+        + getUserName() : String
+        + getPassword() : String
+        + getAllCredentialsConfig() : Map<String, Object>
+        + refreshCredentials() : void
+        + isRefreshInProgress() : boolean
+    }
+}
+
+' Exceptions
+package "org.eclipse.ecsp.sql.exception" EXCEPTION_COLOR {
+    class SqlDaoException {
+        + SqlDaoException(message : String)
+        + SqlDaoException(message : String, cause : Throwable)
+    }
+
+    class TenantNotFoundException {
+        + TenantNotFoundException(message : String)
+    }
+
+    class TargetDataSourceNotFoundException {
+        + TargetDataSourceNotFoundException(message : String)
+    }
+}
+
+' Utilities
+package "org.eclipse.ecsp.sql.dao" UTIL_COLOR {
+    class SqlDaoUtils <<@Component>> {
+        - log : Logger
+        - ctx : ApplicationContext
+        --
+        + getClassInstance(className : String) : Object
+    }
+
+    class MultitenantConstants {
+        + {static} MULTITENANCY_ENABLED : String
+        + {static} DEFAULT_TENANT_ID : String
+        + {static} MULTI_TENANT_IDS : String
+    }
+
+    class PostgresDbConstants {
+        + {static} DEFAULT_DRIVER_CLASS_NAME : String
+        + {static} DEFAULT_POOL_NAME : String
+        + {static} DEFAULT_CONNECTION_TIMEOUT_MS : int
+        + {static} DEFAULT_MIN_POOL_SIZE : int
+        + {static} DEFAULT_MAX_POOL_SIZE : int
+        + {static} DEFAULT_CREDENTIAL_PROVIDER_BEAN_NAME : String
+        + {static} DEFAULT_CREDS_REFRESH_ENABLED : boolean
+        + {static} DEFAULT_DATASOURCE_RETRY_COUNT : int
+        + {static} DEFAULT_SSL_MODE : String
+        ... (more constants)
+    }
+}
+
+' Health & Metrics
+package "org.eclipse.ecsp.sql.postgress" {
+    class PostgresDbHealthCheck {
+        # check() : Result
+    }
+
+    class IgnitePostgresDbGuage {
+        + getValue() : Object
+    }
+}
+
+' Spring Framework
+package "Spring Framework" <<External>> {
+    abstract class AbstractRoutingDataSource {
+        # determineCurrentLookupKey() : Object
+        # determineTargetDataSource() : DataSource
+        + setTargetDataSources(dataSources : Map) : void
+        + setDefaultTargetDataSource(dataSource : Object) : void
+        + afterPropertiesSet() : void
+    }
+
+    interface DataSource <<javax.sql>> {
+    }
+}
+
+' Java
+package "Java" <<External>> {
+    class RuntimeException {
+    }
+
+    class ThreadLocal<T> {
+    }
+}
+
+' Relationships - Core Components
+TenantAwareDataSource "1" *-- "1" TenantRoutingDataSource : creates/manages
+TenantAwareDataSource --> PostgresDbConfig : uses
+TenantAwareDataSource --> TenantDatabaseProperties : configures
+TenantAwareDataSource ..> TenantContext : reads state
+
+TenantRoutingDataSource --|> AbstractRoutingDataSource : extends
+TenantRoutingDataSource --> TenantContext : queries
+TenantRoutingDataSource ..> TargetDataSourceNotFoundException : throws
+TenantRoutingDataSource ..> TenantNotFoundException : throws
+
+TenantContext o-- ThreadLocal : uses
+TenantContext --> MultitenantConstants : uses
+TenantContext ..> TenantNotFoundException : throws
+
+' Relationships - Configuration
+PostgresDbConfig --> MultiTenantDatabaseProperties : autowires
+PostgresDbConfig --> DatabaseProperties : uses
+PostgresDbConfig --> CredentialsProvider : manages
+PostgresDbConfig --> SqlDaoUtils : uses
+PostgresDbConfig ..> SqlDaoException : throws
+PostgresDbConfig ..> DataSource : creates
+
+MultiTenantDatabaseProperties "1" *-- "*" TenantDatabaseProperties : contains
+
+TenantDatabaseProperties ..|> DatabaseProperties : implements
+TenantDatabaseProperties --> PostgresDbConstants : uses defaults
+
+' Relationships - Authentication
+PostgresDbCredentialsProvider --|> CredentialsProvider : extends
+DefaultPostgresDbCredentialsProvider ..|> PostgresDbCredentialsProvider : implements
+
+' Relationships - Exceptions
+SqlDaoException --|> RuntimeException : extends
+TenantNotFoundException --|> RuntimeException : extends
+TargetDataSourceNotFoundException --|> RuntimeException : extends
+
+' Relationships - Spring Integration
+TenantRoutingDataSource ..|> DataSource : provides
+TenantAwareDataSource ..> DataSource : creates
+
+' Notes
+note right of TenantContext
+  Thread-local storage for current tenant ID.
+  Prevents cross-tenant data access.
+  Must be cleared after each request.
+end note
+
+note right of TenantRoutingDataSource
+  Routes database connections based on
+  tenant context. Extends Spring's
+  AbstractRoutingDataSource.
+end note
+
+note right of TenantAwareDataSource
+  Main entry point for tenant datasource
+  management. Handles dynamic add/remove
+  of tenant datasources at runtime.
+end note
+
+note bottom of PostgresDbConfig
+  Central configuration class.
+  Creates HikariCP datasources for
+  each configured tenant.
+end note
+
+note top of MultiTenantDatabaseProperties
+  Binds configuration from:
+  tenants.profile.<tenantId>.*
+end note
+
+@enduml

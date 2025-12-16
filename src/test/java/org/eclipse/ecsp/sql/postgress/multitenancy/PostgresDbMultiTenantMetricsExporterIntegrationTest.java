@@ -376,18 +376,18 @@ class PostgresDbMultiTenantMetricsExporterIntegrationTest {
     @DisplayName("Datasource properties should be correctly configured for all tenants")
     void testDatasourcePropertiesConfiguration() {
         assertNotNull(multiTenantDatabaseProperties, "Multi-tenant database properties should not be null");
-        assertNotNull(multiTenantDatabaseProperties.getTenants(), "Tenants map should not be null");
+        assertNotNull(multiTenantDatabaseProperties.getProfile(), "Tenants map should not be null");
         
-        assertEquals(3, multiTenantDatabaseProperties.getTenants().size(), 
+        assertEquals(3, multiTenantDatabaseProperties.getProfile().size(), 
                 "Should have 3 tenant configurations");
         
         // Verify each tenant has required properties
         String[] tenantIds = {"tenant1", "tenant2", "tenant3"};
         for (String tenantId : tenantIds) {
-            assertTrue(multiTenantDatabaseProperties.getTenants().containsKey(tenantId), 
+            assertTrue(multiTenantDatabaseProperties.getProfile().containsKey(tenantId), 
                     "Should have configuration for " + tenantId);
             
-            var tenantProps = multiTenantDatabaseProperties.getTenants().get(tenantId);
+            var tenantProps = multiTenantDatabaseProperties.getProfile().get(tenantId);
             assertNotNull(tenantProps.getJdbcUrl(), "JDBC URL should be set for " + tenantId);
             assertNotNull(tenantProps.getUserName(), "Username should be set for " + tenantId);
             assertNotNull(tenantProps.getPassword(), "Password should be set for " + tenantId);

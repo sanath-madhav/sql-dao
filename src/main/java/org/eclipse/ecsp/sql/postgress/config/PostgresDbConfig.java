@@ -200,7 +200,7 @@ public class PostgresDbConfig {
             futures.add(CompletableFuture.runAsync(() -> {
                 try {
                     DataSource tenantDataSource = initDataSource(tenantId,
-                            multiTenantDbProperties.getTenants().get(tenantId));
+                            multiTenantDbProperties.getProfile().get(tenantId));
                     targetDataSources.put(tenantId, tenantDataSource);
                     LOGGER.info("Configured DataSource for tenant: {}", tenantId);
                 } catch (Exception e) {
@@ -228,7 +228,7 @@ public class PostgresDbConfig {
         } else {
             for (String tenantId : tenantIds) {
                 DatabaseProperties tenantDbProperties =
-                        multiTenantDbProperties.getTenants().get(tenantId);
+                        multiTenantDbProperties.getProfile().get(tenantId);
                 credsProviderMap.put(tenantId,
                         (CredentialsProvider) utils.getClassInstance(tenantDbProperties.getCredentialProviderBeanName()));
             }
@@ -247,7 +247,7 @@ public class PostgresDbConfig {
     @Scheduled(fixedDelayString = "${" + PostgresDbConstants.POSTGRES_REFRESH_CHECK_INTERVAL
             + ":86400000}")
     public void postgresCredsRefreshJob() throws SQLException, InterruptedException {
-        Map<String, TenantDatabaseProperties> tenants = multiTenantDbProperties.getTenants();
+        Map<String, TenantDatabaseProperties> tenants = multiTenantDbProperties.getProfile();
         if (tenants == null || tenants.isEmpty()) {
             LOGGER.info("Executing credentials refresh job for default tenant.");
             executeCredsRefreshForTenant(MultitenantConstants.DEFAULT_TENANT_ID,

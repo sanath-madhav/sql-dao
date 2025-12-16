@@ -121,7 +121,7 @@ public class PostgresDbHealthMonitor implements HealthMonitor {
             logger.info("Initialized health check list for default tenant: {}", healthCheckList);
         } else {
             for (Map.Entry<String, TenantDatabaseProperties> tenantHealthProps 
-                    : multiTenantHealthProps.getTenants().entrySet()) {
+                    : multiTenantHealthProps.getProfile().entrySet()) {
                 healthCheckList.add(tenantHealthProps.getValue().getPoolName()
                         + HealthConstants.POOL_CONNECTIVITY_HEALTH_CHECK);
                 healthCheckList.add(tenantHealthProps.getValue().getPoolName()
