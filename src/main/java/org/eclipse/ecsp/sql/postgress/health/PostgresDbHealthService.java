@@ -72,7 +72,7 @@ public class PostgresDbHealthService {
     /** The datasource. */
     @Autowired
     @Qualifier("targetDataSources")
-    private Map<Object, Object> targetDataSources;
+    private Map<String, DataSource> targetDataSources;
 
     /** The health service. */
     @Autowired
@@ -110,9 +110,9 @@ public class PostgresDbHealthService {
         @Override
         public boolean performRestart() {
             if (restartOnFailure) {
-                for (Map.Entry<Object, Object> entry : targetDataSources.entrySet()) {
-                    String tenantId = (String) entry.getKey();
-                    DataSource dataSource = (DataSource) entry.getValue();
+                for (Map.Entry<String, DataSource> entry : targetDataSources.entrySet()) {
+                    String tenantId = entry.getKey();
+                    DataSource dataSource = entry.getValue();
                     LOGGER.info("Closing HikariDataSource for tenant: {}", tenantId);
                     ((HikariDataSource) dataSource).close();
                     LOGGER.info("HikariDataSource for tenant: {} closed successfully.", tenantId);

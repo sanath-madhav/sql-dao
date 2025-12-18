@@ -47,6 +47,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -72,7 +73,8 @@ class PostgresDbConfigTest {
 
     /** The data source. */
     @Autowired
-    private Map<Object, Object> targetDataSources;
+    @Qualifier("targetDataSources")
+    private Map<String, DataSource> targetDataSources;
     
     /** The postgresql container. */
     @Container
@@ -96,7 +98,7 @@ class PostgresDbConfigTest {
      */
     @Test
     void testConnection() throws SQLException {
-        assertNotNull(((DataSource) targetDataSources.get("default")).getConnection());
+        assertNotNull((targetDataSources.get("default")).getConnection());
     }
 
 

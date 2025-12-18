@@ -50,7 +50,7 @@ import java.util.Map;
  * credentials are already populated in TenantDatabaseProperties from the properties file
  * (application-dao-multitenant-test.properties).</p>
  * 
- * <p>Property binding happens via @ConfigurationProperties in MultiTenantDatabaseProperties:
+ * <p>Property binding happens via @ConfigurationProperties in TenantConfig:
  * <ul>
  *   <li>tenant.tenants.tenant1.user-name=root</li>
  *   <li>tenant.tenants.tenant1.password=root</li>
@@ -78,12 +78,12 @@ import java.util.Map;
  * @version 1.1
  * @since 2025-10-28
  */
-public class PostgresMultiTenantCredentialsProvider implements CredentialsProvider {
+public class PostgresMultiTenantTestCredentialsProvider implements CredentialsProvider {
 
     /**
      * Default constructor required for reflection-based instantiation.
      */
-    public PostgresMultiTenantCredentialsProvider() {
+    public PostgresMultiTenantTestCredentialsProvider() {
         // Default constructor for reflection by SqlDaoUtils.getClassInstance()
     }
 

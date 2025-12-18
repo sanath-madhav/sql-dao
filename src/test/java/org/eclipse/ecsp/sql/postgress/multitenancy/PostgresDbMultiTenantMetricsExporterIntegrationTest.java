@@ -43,8 +43,9 @@ package org.eclipse.ecsp.sql.postgress.multitenancy;
 import io.prometheus.client.CollectorRegistry;
 import org.awaitility.Awaitility;
 import org.eclipse.ecsp.sql.SqlDaoApplication;
-import org.eclipse.ecsp.sql.multitenancy.MultiTenantDatabaseProperties;
+
 import org.eclipse.ecsp.sql.multitenancy.TenantContext;
+import org.eclipse.ecsp.sql.multitenancy.TenantDatabaseProperties;
 import org.eclipse.ecsp.sql.postgress.metrics.IgnitePostgresDbGuage;
 import org.eclipse.ecsp.sql.postgress.metrics.IgnitePostgresDbMetricsExporter;
 import org.junit.jupiter.api.AfterAll;
@@ -98,10 +99,11 @@ class PostgresDbMultiTenantMetricsExporterIntegrationTest {
 
     @Autowired
     @Qualifier("targetDataSources")
-    private Map<Object, Object> targetDataSources;
+    private Map<String, DataSource> targetDataSources;
 
     @Autowired
-    private MultiTenantDatabaseProperties multiTenantDatabaseProperties;
+    @Qualifier("tenantConfigMap")
+    private Map<String, TenantDatabaseProperties> multiTenantDatabaseProperties;
 
     /** Testcontainer for tenant1 */
     @Container
@@ -215,7 +217,7 @@ class PostgresDbMultiTenantMetricsExporterIntegrationTest {
     void testActiveConnectionsMetric() throws SQLException {
         // Set tenant context and get a connection for tenant1
         TenantContext.setCurrentTenant("tenant1");
-        DataSource tenant1DataSource = (DataSource) targetDataSources.get("tenant1");
+        DataSource tenant1DataSource = targetDataSources.get("tenant1");
         
         try (Connection conn = tenant1DataSource.getConnection()) {
             assertNotNull(conn, "Connection should not be null");
@@ -279,13 +281,13 @@ class PostgresDbMultiTenantMetricsExporterIntegrationTest {
     void testMetricsIsolationAcrossTenants() throws InterruptedException {
         // Create connections for different tenants
         TenantContext.setCurrentTenant("tenant1");
-        DataSource tenant1DataSource = (DataSource) targetDataSources.get("tenant1");
+        DataSource tenant1DataSource = targetDataSources.get("tenant1");
         
         TenantContext.setCurrentTenant("tenant2");
-        DataSource tenant2DataSource = (DataSource) targetDataSources.get("tenant2");
+        DataSource tenant2DataSource = targetDataSources.get("tenant2");
         
         TenantContext.setCurrentTenant("tenant3");
-        DataSource tenant3DataSource = (DataSource) targetDataSources.get("tenant3");
+        DataSource tenant3DataSource = targetDataSources.get("tenant3");
         
         TenantContext.clear();
         
@@ -376,18 +378,18 @@ class PostgresDbMultiTenantMetricsExporterIntegrationTest {
     @DisplayName("Datasource properties should be correctly configured for all tenants")
     void testDatasourcePropertiesConfiguration() {
         assertNotNull(multiTenantDatabaseProperties, "Multi-tenant database properties should not be null");
-        assertNotNull(multiTenantDatabaseProperties.getTenants(), "Tenants map should not be null");
+        assertNotNull(multiTenantDatabaseProperties, "Tenants map should not be null");
         
-        assertEquals(3, multiTenantDatabaseProperties.getTenants().size(), 
+        assertEquals(3, multiTenantDatabaseProperties.size(), 
                 "Should have 3 tenant configurations");
         
         // Verify each tenant has required properties
         String[] tenantIds = {"tenant1", "tenant2", "tenant3"};
         for (String tenantId : tenantIds) {
-            assertTrue(multiTenantDatabaseProperties.getTenants().containsKey(tenantId), 
+            assertTrue(multiTenantDatabaseProperties.containsKey(tenantId), 
                     "Should have configuration for " + tenantId);
             
-            var tenantProps = multiTenantDatabaseProperties.getTenants().get(tenantId);
+            var tenantProps = multiTenantDatabaseProperties.get(tenantId);
             assertNotNull(tenantProps.getJdbcUrl(), "JDBC URL should be set for " + tenantId);
             assertNotNull(tenantProps.getUserName(), "Username should be set for " + tenantId);
             assertNotNull(tenantProps.getPassword(), "Password should be set for " + tenantId);

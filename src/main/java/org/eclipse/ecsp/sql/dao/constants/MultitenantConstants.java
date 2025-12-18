@@ -56,7 +56,4 @@ public class MultitenantConstants {
 
     /** The Constant DEFAULT_TENANT_ID. */
     public static final String DEFAULT_TENANT_ID = "default";
-
-    /** The Constant MULTI_TENANT_IDS. */
-    public static final String MULTI_TENANT_IDS = "multi.tenant.ids";
 }

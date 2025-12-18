@@ -39,6 +39,7 @@
 
 package org.eclipse.ecsp.sql.multitenancy;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
 import javax.sql.DataSource;
@@ -71,7 +72,7 @@ public class TenantAwareDataSource {
 
     @Autowired
     @Qualifier("targetDataSources")
-    private Map<Object, Object> targetDataSources;
+    private Map<String, DataSource> targetDataSources;
 
     /**
      * Initializes the tenant routing data source as a Spring Bean.
@@ -93,12 +94,12 @@ public class TenantAwareDataSource {
         TenantRoutingDataSource tenantRoutingDataSource = new TenantRoutingDataSource();
         if (!isMultitenancyEnabled) {
             logger.info("Multitenancy is disabled. Using default tenant data source.");
-            tenantRoutingDataSource.setTargetDataSources(targetDataSources);
+            tenantRoutingDataSource.setTargetDataSources(new HashMap<>(targetDataSources));
             tenantRoutingDataSource.setDefaultTargetDataSource(
                     targetDataSources.get(MultitenantConstants.DEFAULT_TENANT_ID));
         } else {
             logger.info("Multitenancy is enabled. Setting target data sources for tenants.");
-            tenantRoutingDataSource.setTargetDataSources(targetDataSources);
+            tenantRoutingDataSource.setTargetDataSources(new HashMap<>(targetDataSources));
         }
         tenantRoutingDataSource.afterPropertiesSet();
         logger.info("TenantAwareDataSource initialized successfully.");

@@ -43,7 +43,8 @@ import com.codahale.metrics.health.HealthCheck;
 import com.codahale.metrics.health.HealthCheckRegistry;
 import com.zaxxer.hikari.HikariDataSource;
 import io.prometheus.client.CollectorRegistry;
-import org.eclipse.ecsp.sql.postgress.config.DefaultDbProperties;
+import javax.sql.DataSource;
+import org.eclipse.ecsp.sql.multitenancy.TenantDatabaseProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -71,7 +72,7 @@ class PostgresDbHealthMonitorUnitTest {
     PostgresDbHealthCheck postgresDbHealthCheck;
 
     @Mock
-    Map<Object, Object> targetDataSources;
+    Map<String, DataSource> targetDataSources;
 
     /** The data source. */
     HikariDataSource dataSource;
@@ -94,7 +95,7 @@ class PostgresDbHealthMonitorUnitTest {
     @Test
     void testunHealthy() {
         MockitoAnnotations.openMocks(this);
-        Map.Entry<Object, Object> entry = mock(Map.Entry.class);
+        Map.Entry<String, DataSource> entry = mock(Map.Entry.class);
         when(entry.getValue()).thenReturn(dataSource);
         when(targetDataSources.entrySet()).thenReturn(Set.of(entry));
         boolean healthy = postgresDbHealthMonitor.isHealthy(true);
@@ -108,11 +109,12 @@ class PostgresDbHealthMonitorUnitTest {
     void testFailedHealthCheck() {
         dataSource = mock(HikariDataSource.class);
         MockitoAnnotations.openMocks(this);
-        DefaultDbProperties tenantHealthProps = new DefaultDbProperties();
+        TenantDatabaseProperties tenantHealthProps = new TenantDatabaseProperties();
         tenantHealthProps.setPoolName("testPool");
-        ReflectionTestUtils.setField(postgresDbHealthMonitor, "defaultTenantHealthProps",
-                tenantHealthProps);
-        Map.Entry<Object, Object> entry = mock(Map.Entry.class);
+        Map<String, TenantDatabaseProperties> tenantMap = Map.of("default", tenantHealthProps);
+        ReflectionTestUtils.setField(postgresDbHealthMonitor, "tenantConfigMap",
+                tenantMap);
+        Map.Entry<String, DataSource> entry = mock(Map.Entry.class);
         when(targetDataSources.entrySet()).thenReturn(Set.of(entry));
         when(entry.getKey()).thenReturn("default");
         when(entry.getValue()).thenReturn(dataSource);

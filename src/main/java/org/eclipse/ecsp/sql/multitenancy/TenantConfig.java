@@ -42,22 +42,31 @@ package org.eclipse.ecsp.sql.multitenancy;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import lombok.Getter;
-import lombok.Setter;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 /**
- * Configuration properties for multi-tenant database setup.
- * This class is automatically registered as a Spring bean via @ConfigurationPropertiesScan.
+ * Configuration class for multi-tenant database properties.
+ * Exposes a Map bean bound to the "tenant" prefix to allow direct binding
+ * of properties like tenant.tenantA.jdbc-url without the redundant "tenants" level.
  * 
  * @author hbadshah
  * @version 1.1
- * @since 2025-10-28
+ * @since 2025-12-18
  */
-@Getter
-@Setter
-@ConfigurationProperties(prefix = "tenant")
-public class MultiTenantDatabaseProperties {
+@Configuration
+public class TenantConfig {
 
-    /** Map of tenant IDs to their database properties */
-    private Map<String, TenantDatabaseProperties> tenants = new HashMap<>();
+    /**
+     * Creates a Map bean for tenant database properties.
+     * Properties with prefix "tenant" will be bound as map entries.
+     * For example: tenant.tenantA.jdbc-url will create a map entry with key "tenantA".
+     *
+     * @return Map of tenant IDs to their database properties
+     */
+    @Bean("tenantConfigMap")
+    @ConfigurationProperties(prefix = "tenant")
+    public Map<String, TenantDatabaseProperties> tenantConfigMap() {
+        return new HashMap<>();
+    }
 }

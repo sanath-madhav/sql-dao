@@ -42,7 +42,7 @@ package org.eclipse.ecsp.sql.postgress.multitenancy;
 import io.prometheus.client.CollectorRegistry;
 import org.eclipse.ecsp.sql.SqlDaoApplication;
 import org.eclipse.ecsp.sql.authentication.DefaultPostgresDbCredentialsProvider;
-import org.eclipse.ecsp.sql.multitenancy.MultiTenantDatabaseProperties;
+
 import org.eclipse.ecsp.sql.multitenancy.TenantAwareDataSource;
 import org.eclipse.ecsp.sql.multitenancy.TenantContext;
 import org.eclipse.ecsp.sql.multitenancy.TenantDatabaseProperties;
@@ -97,10 +97,11 @@ class PostgresDbConfigMultiTenantIntegrationTest {
 
     @Autowired
     @Qualifier("targetDataSources")
-    private Map<Object, Object> targetDataSources;
+    private Map<String, DataSource> targetDataSources;
 
     @Autowired
-    private MultiTenantDatabaseProperties multiTenantDatabaseProperties;
+    @Qualifier("tenantConfigMap")
+    private Map<String, TenantDatabaseProperties> multiTenantDatabaseProperties;
 
     /** Testcontainer for tenant1 */
     @Container
@@ -183,7 +184,7 @@ class PostgresDbConfigMultiTenantIntegrationTest {
     @DisplayName("Should get connection for tenant1 datasource")
     void testTenant1Connection() throws SQLException {
         // Given: Tenant1 datasource exists
-        DataSource tenant1DataSource = (DataSource) targetDataSources.get("tenant1");
+        DataSource tenant1DataSource = targetDataSources.get("tenant1");
         assertNotNull(tenant1DataSource, "Tenant1 datasource should not be null");
         
         // When: Getting a connection
@@ -199,7 +200,7 @@ class PostgresDbConfigMultiTenantIntegrationTest {
     @DisplayName("Should get connection for tenant2 datasource")
     void testTenant2Connection() throws SQLException {
         // Given: Tenant2 datasource exists
-        DataSource tenant2DataSource = (DataSource) targetDataSources.get("tenant2");
+        DataSource tenant2DataSource = targetDataSources.get("tenant2");
         assertNotNull(tenant2DataSource, "Tenant2 datasource should not be null");
         
         // When: Getting a connection
@@ -215,7 +216,7 @@ class PostgresDbConfigMultiTenantIntegrationTest {
     @DisplayName("Should get connection for tenant3 datasource")
     void testTenant3Connection() throws SQLException {
         // Given: Tenant3 datasource exists
-        DataSource tenant3DataSource = (DataSource) targetDataSources.get("tenant3");
+        DataSource tenant3DataSource = targetDataSources.get("tenant3");
         assertNotNull(tenant3DataSource, "Tenant3 datasource should not be null");
         
         // When: Getting a connection
@@ -265,7 +266,7 @@ class PostgresDbConfigMultiTenantIntegrationTest {
                     TenantContext.setCurrentTenant(tenantId);
                     
                     // Verify connection can be obtained
-                    DataSource ds = (DataSource) targetDataSources.get(tenantId);
+                    DataSource ds = targetDataSources.get(tenantId);
                     try (Connection conn = ds.getConnection()) {
                         assertTrue(conn.isValid(5), "Connection should be valid for " + tenantId);
                     }
@@ -295,7 +296,7 @@ class PostgresDbConfigMultiTenantIntegrationTest {
     @DisplayName("Should verify tenant-specific connection pool configuration")
     void testTenantSpecificPoolConfiguration() {
         // Given: Each tenant has different pool configuration
-        Map<String, TenantDatabaseProperties> tenants = multiTenantDatabaseProperties.getTenants();
+        Map<String, TenantDatabaseProperties> tenants = multiTenantDatabaseProperties;
         
         // Then: Verify tenant configurations are loaded correctly
         assertNotNull(tenants, "Tenants configuration should not be null");
@@ -320,7 +321,7 @@ class PostgresDbConfigMultiTenantIntegrationTest {
     void testQueriesOnDifferentTenants() throws SQLException {
         // Given: Create different tables in each tenant database
         for (String tenantId : new String[]{"tenant1", "tenant2", "tenant3"}) {
-            DataSource ds = (DataSource) targetDataSources.get(tenantId);
+            DataSource ds = targetDataSources.get(tenantId);
             try (Connection conn = ds.getConnection();
                  Statement stmt = conn.createStatement()) {
                 stmt.execute("CREATE TABLE IF NOT EXISTS test_table_" + tenantId 
@@ -332,7 +333,7 @@ class PostgresDbConfigMultiTenantIntegrationTest {
         
         // When & Then: Each tenant should be able to query their own table
         for (String tenantId : new String[]{"tenant1", "tenant2", "tenant3"}) {
-            DataSource ds = (DataSource) targetDataSources.get(tenantId);
+            DataSource ds = targetDataSources.get(tenantId);
             try (Connection conn = ds.getConnection();
                  Statement stmt = conn.createStatement();
                  var rs = stmt.executeQuery("SELECT COUNT(*) as cnt FROM test_table_" + tenantId)) {
@@ -370,7 +371,7 @@ class PostgresDbConfigMultiTenantIntegrationTest {
     void testDataSourceTypes() {
         // When & Then: All datasources should be HikariCP instances
         for (Object key : targetDataSources.keySet()) {
-            DataSource ds = (DataSource) targetDataSources.get(key);
+            DataSource ds = targetDataSources.get(key);
             assertNotNull(ds, "Datasource for " + key + " should not be null");
             assertEquals("com.zaxxer.hikari.HikariDataSource", 
                 ds.getClass().getName(), 
@@ -384,7 +385,7 @@ class PostgresDbConfigMultiTenantIntegrationTest {
      * Creates a test table and inserts data for the specified tenant.
      */
     private void createTestTableAndInsertData(String tenantId, String data) throws SQLException {
-        DataSource ds = (DataSource) targetDataSources.get(tenantId);
+        DataSource ds = targetDataSources.get(tenantId);
         try (Connection conn = ds.getConnection();
              Statement stmt = conn.createStatement()) {
             stmt.execute("CREATE TABLE IF NOT EXISTS tenant_test (id SERIAL PRIMARY KEY, data VARCHAR(100))");
@@ -396,7 +397,7 @@ class PostgresDbConfigMultiTenantIntegrationTest {
      * Queries test data from the specified tenant's database.
      */
     private String queryTestData(String tenantId) throws SQLException {
-        DataSource ds = (DataSource) targetDataSources.get(tenantId);
+        DataSource ds = targetDataSources.get(tenantId);
         try (Connection conn = ds.getConnection();
              Statement stmt = conn.createStatement();
              var rs = stmt.executeQuery("SELECT data FROM tenant_test LIMIT 1")) {

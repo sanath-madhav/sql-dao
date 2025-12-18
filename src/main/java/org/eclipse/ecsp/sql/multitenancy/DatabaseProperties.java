@@ -41,15 +41,13 @@ package org.eclipse.ecsp.sql.multitenancy;
 
 /**
  * Common interface for database configuration properties.
- * This interface defines the contract for both single-tenant and multi-tenant
- * database property configurations.
+ * This interface defines the contract for database property configurations.
  * 
- * Implementations:
- * - TenantDatabaseProperties: Used for multi-tenant mode with @ConfigurationProperties binding
- * - DefaultDbProperties: Used for single-tenant mode with @Value annotations
+ * Implementation:
+ * - TenantDatabaseProperties: Used for all tenants (including 'default') with @ConfigurationProperties binding
  * 
  * @author hbadshah
- * @version 1.9
+ * @version 2.0
  * @since 2025-10-28
  */
 public interface DatabaseProperties {

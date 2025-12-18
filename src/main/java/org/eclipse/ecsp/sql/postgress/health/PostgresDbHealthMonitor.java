@@ -47,9 +47,7 @@ import org.eclipse.ecsp.healthcheck.HealthMonitor;
 import org.eclipse.ecsp.sql.dao.constants.HealthConstants;
 import org.eclipse.ecsp.sql.dao.constants.MultitenantConstants;
 import org.eclipse.ecsp.sql.dao.constants.PostgresDbConstants;
-import org.eclipse.ecsp.sql.multitenancy.MultiTenantDatabaseProperties;
 import org.eclipse.ecsp.sql.multitenancy.TenantDatabaseProperties;
-import org.eclipse.ecsp.sql.postgress.config.DefaultDbProperties;
 import org.eclipse.ecsp.utils.logger.IgniteLogger;
 import org.eclipse.ecsp.utils.logger.IgniteLoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -83,15 +81,13 @@ public class PostgresDbHealthMonitor implements HealthMonitor {
 
     /** Configuration map for all the tenant IDs. */
     @Autowired
-    private MultiTenantDatabaseProperties multiTenantHealthProps;
-
-    @Autowired
-    private DefaultDbProperties defaultTenantHealthProps;
+    @Qualifier("tenantConfigMap")
+    private Map<String, TenantDatabaseProperties> tenantConfigMap;
 
     /** Target data sources for each tenant ID. */
     @Autowired
     @Qualifier("targetDataSources")
-    private Map<Object, Object> targetDataSources;
+    private Map<String, DataSource> targetDataSources;
 
     /** Flag to enable or disable multi-tenancy */
     @Value("${" + MultitenantConstants.MULTITENANCY_ENABLED + ":false}")
@@ -115,20 +111,21 @@ public class PostgresDbHealthMonitor implements HealthMonitor {
     public void init() {
         healthCheckList = new ArrayList<>();
         if (!isMultitenancyEnabled) {
-            healthCheckList.add(defaultTenantHealthProps.getPoolName() + HealthConstants.POOL_CONNECTIVITY_HEALTH_CHECK);
-            healthCheckList.add(defaultTenantHealthProps.getPoolName()
+            healthCheckList.add(tenantConfigMap.get(MultitenantConstants.DEFAULT_TENANT_ID).getPoolName()
+                    + HealthConstants.POOL_CONNECTIVITY_HEALTH_CHECK);
+            healthCheckList.add(tenantConfigMap.get(MultitenantConstants.DEFAULT_TENANT_ID).getPoolName()
                     + HealthConstants.POOL_CONNECTION_99_PERCENT_HEALTH_CHECK);
             logger.info("Initialized health check list for default tenant: {}", healthCheckList);
-        } else {
-            for (Map.Entry<String, TenantDatabaseProperties> tenantHealthProps 
-                    : multiTenantHealthProps.getTenants().entrySet()) {
-                healthCheckList.add(tenantHealthProps.getValue().getPoolName()
-                        + HealthConstants.POOL_CONNECTIVITY_HEALTH_CHECK);
-                healthCheckList.add(tenantHealthProps.getValue().getPoolName()
-                        + HealthConstants.POOL_CONNECTION_99_PERCENT_HEALTH_CHECK);
-            }
-            logger.info("Initialized health check list for all tenants: {}", healthCheckList);
+            return;
         }
+        for (Map.Entry<String, TenantDatabaseProperties> tenantHealthProps 
+                : tenantConfigMap.entrySet()) {
+            healthCheckList.add(tenantHealthProps.getValue().getPoolName()
+                    + HealthConstants.POOL_CONNECTIVITY_HEALTH_CHECK);
+            healthCheckList.add(tenantHealthProps.getValue().getPoolName()
+                    + HealthConstants.POOL_CONNECTION_99_PERCENT_HEALTH_CHECK);
+        }
+        logger.info("Initialized health check list for all tenants: {}", healthCheckList);
     }
 
     /**
@@ -139,9 +136,9 @@ public class PostgresDbHealthMonitor implements HealthMonitor {
      */
     @Override
     public boolean isHealthy(boolean forceHealthCheck) {
-        for (Map.Entry<Object, Object> entry : targetDataSources.entrySet()) {
-            String tenantId = (String) entry.getKey();
-            DataSource datasource = (DataSource) entry.getValue();
+        for (Map.Entry<String, DataSource> entry : targetDataSources.entrySet()) {
+            String tenantId = entry.getKey();
+            DataSource datasource = entry.getValue();
             logger.info("Checking health for tenant: {}", tenantId);
             if (datasource == null) return false;
              

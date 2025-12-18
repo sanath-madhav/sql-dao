@@ -53,12 +53,12 @@ import org.eclipse.ecsp.sql.dao.constants.PostgresDbConstants;
 import org.eclipse.ecsp.sql.dao.utils.SqlDaoUtils;
 import org.eclipse.ecsp.sql.exception.SqlDaoException;
 import org.eclipse.ecsp.sql.multitenancy.DatabaseProperties;
-import org.eclipse.ecsp.sql.multitenancy.MultiTenantDatabaseProperties;
 import org.eclipse.ecsp.sql.multitenancy.TenantContext;
 import org.eclipse.ecsp.sql.multitenancy.TenantDatabaseProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -120,14 +120,9 @@ import static org.postgresql.PGProperty.SSL_ROOT_CERT;
  * @version 1.1
  * @since 2025-04-15
  */
-@Configuration
+@Configuration("postgresDbConfig")
 @EnableScheduling
-@Component("postgresDbConfig")
 public class PostgresDbConfig {
-
-    /** Comma-separated list of tenant IDs */
-    @Value("#{'${" + MultitenantConstants.MULTI_TENANT_IDS + ":}'.split(',')}")
-    private List<String> tenantIds;
 
     /** Flag to enable or disable multi-tenancy */
     @Value("${" + MultitenantConstants.MULTITENANCY_ENABLED + ":false}")
@@ -137,18 +132,15 @@ public class PostgresDbConfig {
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresDbConfig.class);
 
     /** Holder for tenantId -> DataSource. */
-    private final Map<Object, Object> targetDataSources = new ConcurrentHashMap<>();
+    private final Map<String, DataSource> targetDataSources = new ConcurrentHashMap<>();
 
     /** Holder for tenantId -> CredentialsProvider. */
     private final Map<String, CredentialsProvider> credsProviderMap = new ConcurrentHashMap<>();
 
     /** Contains a map of tenant IDs to their database properties. */
     @Autowired
-    private MultiTenantDatabaseProperties multiTenantDbProperties;
-
-    /** Configurations for default tenant. */
-    @Autowired(required = false)
-    private DatabaseProperties defaultDbProperties;
+    @Qualifier("tenantConfigMap")
+    private Map<String, TenantDatabaseProperties> tenantConfigMap;
 
     /** The ctx. */
     @Autowired
@@ -167,40 +159,43 @@ public class PostgresDbConfig {
      */
     @Bean("targetDataSources")
     @DependsOn("credentialsProvider")
-    public Map<Object, Object> constructTargetDataSources() {
+    public Map<String, DataSource> constructTargetDataSources() {
         // Initialize TenantContext with multitenancy flag
         TenantContext.initialize(isMultitenancyEnabled);
-        
         if (!isMultitenancyEnabled) {
-            LOGGER.info("Multitenancy is disabled. Default configuration will be used.");
+            LOGGER.info("Multitenancy is disabled. Initializing default tenant DataSource.");
             try {
                 DataSource defaultDataSource =
-                        initDataSource(MultitenantConstants.DEFAULT_TENANT_ID, defaultDbProperties);
+                        initDataSource(MultitenantConstants.DEFAULT_TENANT_ID,
+                                tenantConfigMap.get(MultitenantConstants.DEFAULT_TENANT_ID));
                 targetDataSources.put(MultitenantConstants.DEFAULT_TENANT_ID, defaultDataSource);
+                LOGGER.info("Configured default DataSource for tenant: {}",
+                        MultitenantConstants.DEFAULT_TENANT_ID);
             } catch (Exception e) {
-                LOGGER.error("Error initializing default DataSource", e);
+                LOGGER.error("Error initializing default DataSource for tenant: {}, exception: {} ",
+                        MultitenantConstants.DEFAULT_TENANT_ID, e);
             }
-        } else {
-            LOGGER.info("Multitenancy is enabled. Initializing tenant-specific DataSources.");
-            initializeDataSourcesForTenants();
+            return targetDataSources;
         }
+        LOGGER.info("Initializing DataSources for {} tenant(s).", tenantConfigMap != null ? tenantConfigMap.size() : 0);
+        initializeDataSourcesForTenants();
         LOGGER.info("Initialization of target DataSources is complete.");
         return targetDataSources;
     }
 
     /**
-     * Initializes DataSources for each tenant based on the provided tenant IDs.
+     * Initializes DataSources for each tenant based on the tenant configurations.
      */
     private void initializeDataSourcesForTenants() {
-        int threadCount = tenantIds != null ? tenantIds.size() : 1;
+        int threadCount = tenantConfigMap != null ? tenantConfigMap.size() : 1;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-        for (String tenantId : tenantIds) {
+        for (String tenantId : tenantConfigMap.keySet()) {
             futures.add(CompletableFuture.runAsync(() -> {
                 try {
                     DataSource tenantDataSource = initDataSource(tenantId,
-                            multiTenantDbProperties.getTenants().get(tenantId));
+                            tenantConfigMap.get(tenantId));
                     targetDataSources.put(tenantId, tenantDataSource);
                     LOGGER.info("Configured DataSource for tenant: {}", tenantId);
                 } catch (Exception e) {
@@ -222,15 +217,29 @@ public class PostgresDbConfig {
     @Bean("credentialsProvider")
     public Map<String, CredentialsProvider> getCredentialsProvider() {
         if (!isMultitenancyEnabled) {
-            LOGGER.info("Multitenancy is disabled. Using default tenant credentials provider.");
-            credsProviderMap.put(MultitenantConstants.DEFAULT_TENANT_ID,
-                    (CredentialsProvider) utils.getClassInstance(defaultDbProperties.getCredentialProviderBeanName()));
-        } else {
-            for (String tenantId : tenantIds) {
-                DatabaseProperties tenantDbProperties =
-                        multiTenantDbProperties.getTenants().get(tenantId);
+            LOGGER.info("Multitenancy is disabled. Initializing default tenant CredentialsProvider.");
+            try {
+                credsProviderMap.put(MultitenantConstants.DEFAULT_TENANT_ID,
+                        (CredentialsProvider) utils.getClassInstance(
+                                tenantConfigMap.get(MultitenantConstants.DEFAULT_TENANT_ID)
+                                        .getCredentialProviderBeanName()));
+                LOGGER.info("Successfully loaded credentials provider for default tenant: {}",
+                        MultitenantConstants.DEFAULT_TENANT_ID);
+            } catch (Exception e) {
+                LOGGER.error("Error loading credentials provider for default tenant: {}, exception: {} ",
+                        MultitenantConstants.DEFAULT_TENANT_ID, e);
+            }
+            return credsProviderMap;
+        }
+        for (String tenantId : tenantConfigMap.keySet()) {
+            DatabaseProperties tenantDbProperties = tenantConfigMap.get(tenantId);
+            try {
                 credsProviderMap.put(tenantId,
                         (CredentialsProvider) utils.getClassInstance(tenantDbProperties.getCredentialProviderBeanName()));
+                LOGGER.info("Successfully loaded credentials provider for tenant: {}", tenantId);
+            } catch (Exception e) {
+                LOGGER.error("Error loading credentials provider for tenant: {}, exception: {}", 
+                        tenantId, e.getMessage(), e);
             }
         }
         return credsProviderMap;
@@ -247,17 +256,16 @@ public class PostgresDbConfig {
     @Scheduled(fixedDelayString = "${" + PostgresDbConstants.POSTGRES_REFRESH_CHECK_INTERVAL
             + ":86400000}")
     public void postgresCredsRefreshJob() throws SQLException, InterruptedException {
-        Map<String, TenantDatabaseProperties> tenants = multiTenantDbProperties.getTenants();
-        if (tenants == null || tenants.isEmpty()) {
+        if (!isMultitenancyEnabled) {
             LOGGER.info("Executing credentials refresh job for default tenant.");
             executeCredsRefreshForTenant(MultitenantConstants.DEFAULT_TENANT_ID,
-                    defaultDbProperties);
-        } else {
-            for (String tenantId : tenants.keySet()) {
-                DatabaseProperties tenantDbProperties = tenants.get(tenantId);
-                LOGGER.info("Executing credentials refresh job for tenant: {}.", tenantId);
-                executeCredsRefreshForTenant(tenantId, tenantDbProperties);
-            }
+                    tenantConfigMap.get(MultitenantConstants.DEFAULT_TENANT_ID));
+            return;
+        }
+        for (String tenantId : tenantConfigMap.keySet()) {
+            DatabaseProperties tenantDbProperties = tenantConfigMap.get(tenantId);
+            LOGGER.info("Executing credentials refresh job for tenant: {}.", tenantId);
+            executeCredsRefreshForTenant(tenantId, tenantDbProperties);
         }
     }
 
@@ -275,7 +283,7 @@ public class PostgresDbConfig {
         props.setPassword(credentialsProvider.getPassword());
 
         LOGGER.debug("Cleaning up existing connections for tenant ID: {}.", tenantId);
-        cleanupConnections((DataSource) targetDataSources.get(tenantId));
+        cleanupConnections(targetDataSources.get(tenantId));
         LOGGER.info("Creating connection with refreshed credentials...");
         try {
             Connection connection = createConnections(tenantId, props);
@@ -307,13 +315,13 @@ public class PostgresDbConfig {
         Connection connection;
         do {
             try {
+                Thread.sleep(connectionRetryDelay);
                 LOGGER.info("Retrying the connection creation for tenant ID: {}. Attempts left: {}",
                         tenantId, connectionRetryCount);
                 connectionRetryCount--;
                 dbProperties.setConnectionRetryCount(connectionRetryCount);
                 connection = createConnections(tenantId, dbProperties);
                 if (connection != null && !connection.isValid(1)) {
-                    Thread.sleep(connectionRetryDelay);
                     continue;
                 }
             } catch (Exception e) {
@@ -322,7 +330,6 @@ public class PostgresDbConfig {
                     throw new SqlDaoException("All retry attempts are exhausted for connection creation");
                 }
                 LOGGER.error("Exception occurred in retrying the connection creation", e);
-                Thread.sleep(connectionRetryDelay);
             }
         } while (connectionRetryCount > 0);
     }
@@ -332,7 +339,7 @@ public class PostgresDbConfig {
      * @return the connection
      */
     private Connection createConnections(String tenantId, DatabaseProperties dbProperties) {
-        HikariDataSource hds = ((HikariDataSource) targetDataSources.get(tenantId));
+        HikariDataSource hds = (HikariDataSource) targetDataSources.get(tenantId);
         hds.setUsername(dbProperties.getUserName());
         hds.setPassword(dbProperties.getPassword());
         Connection conn = null;
@@ -381,7 +388,7 @@ public class PostgresDbConfig {
             LOGGER.error("Error occurred while creating the datasource: {} for tenantId: {}",
                     exception, tenantId);
             int dataSourceRetryCount = dbProperties.getDataSourceRetryCount();
-            DataSource dataSource = (DataSource) targetDataSources.get(tenantId);
+            DataSource dataSource = targetDataSources.get(tenantId);
             while (dataSourceRetryCount > 0 && dataSource == null) {
                 dbProperties.setUserName(credsProvider.getUserName());
                 dbProperties.setPassword(credsProvider.getPassword());
@@ -403,7 +410,7 @@ public class PostgresDbConfig {
             }
         }
         try {
-            Connection connection = ((DataSource) targetDataSources.get(tenantId)).getConnection();
+            Connection connection = targetDataSources.get(tenantId).getConnection();
             LOGGER.info("Datasource and connection created successfully for tenantId: {}", tenantId);
         } catch (Exception exception) {
             LOGGER.error( "Exception occurred while creating connection for tenantId: {}, exception is: {}",
@@ -419,9 +426,9 @@ public class PostgresDbConfig {
     @PreDestroy
     private void destroy() {
         LOGGER.info("Destroying Postgres connections and dataSources...");
-        for (Map.Entry<Object, Object> entry : targetDataSources.entrySet()) {
-            cleanupConnections((DataSource) entry.getValue());
-            cleanupDataSource((DataSource) entry.getValue());
+        for (Map.Entry<String, DataSource> entry : targetDataSources.entrySet()) {
+            cleanupConnections(entry.getValue());
+            cleanupDataSource(entry.getValue());
         }
     }
 

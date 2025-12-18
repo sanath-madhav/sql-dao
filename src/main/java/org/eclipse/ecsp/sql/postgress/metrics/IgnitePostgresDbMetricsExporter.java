@@ -49,9 +49,7 @@ import org.eclipse.ecsp.healthcheck.ThreadUtils;
 import org.eclipse.ecsp.sql.dao.constants.MetricsConstants;
 import org.eclipse.ecsp.sql.dao.constants.MultitenantConstants;
 import org.eclipse.ecsp.sql.dao.constants.PostgresDbConstants;
-import org.eclipse.ecsp.sql.multitenancy.MultiTenantDatabaseProperties;
 import org.eclipse.ecsp.sql.multitenancy.TenantDatabaseProperties;
-import org.eclipse.ecsp.sql.postgress.config.DefaultDbProperties;
 import org.eclipse.ecsp.utils.logger.IgniteLogger;
 import org.eclipse.ecsp.utils.logger.IgniteLoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -114,16 +112,13 @@ public class IgnitePostgresDbMetricsExporter {
 
     /** Configuration map for all the tenant IDs. */
     @Autowired
-    private MultiTenantDatabaseProperties multiTenantHealthProps;
-
-    /** Configurations for default tenant ID, i.e. non-multitenant. */
-    @Autowired
-    private DefaultDbProperties defaultTenantHealthProps;
+    @Qualifier("tenantConfigMap")
+    private Map<String, TenantDatabaseProperties> tenantConfigMap;
 
     /** Target data sources for each tenant ID. */
     @Autowired
     @Qualifier("targetDataSources")
-    private Map<Object, Object> targetDataSources;
+    private Map<String, DataSource> targetDataSources;
 
     /** The postgres db metrics executor. */
     private ScheduledExecutorService postgresDbMetricsExecutor;
@@ -163,22 +158,30 @@ public class IgnitePostgresDbMetricsExporter {
     private void createMetricsList() {
         metricsList = new ArrayList<>();
         if (!isMultitenancyEnabled) {
-            metricsList.add(defaultTenantHealthProps.getPoolName() + MetricsConstants.POSTGRES_METRIC_TOTAL_CONNECTIONS);
-            metricsList.add(defaultTenantHealthProps.getPoolName() + MetricsConstants.POSTGRES_METRIC_ACTIVE_CONNECTIONS);
-            metricsList.add(defaultTenantHealthProps.getPoolName() + MetricsConstants.POSTGRES_METRIC_IDLE_CONNECTIONS);
-            metricsList.add(defaultTenantHealthProps.getPoolName()
+            TenantDatabaseProperties tenantHealthProps =
+                    tenantConfigMap.get(MultitenantConstants.DEFAULT_TENANT_ID);
+            metricsList.add(tenantHealthProps.getPoolName()
+                    + MetricsConstants.POSTGRES_METRIC_TOTAL_CONNECTIONS);
+            metricsList.add(tenantHealthProps.getPoolName()
+                    + MetricsConstants.POSTGRES_METRIC_ACTIVE_CONNECTIONS);
+            metricsList.add(tenantHealthProps.getPoolName()
+                    + MetricsConstants.POSTGRES_METRIC_IDLE_CONNECTIONS);
+            metricsList.add(tenantHealthProps.getPoolName()
                     + MetricsConstants.POSTGRES_METRIC_PENDING_CONNECTIONS);
             LOGGER.info("Created Metrics list for default tenant: {}", metricsList);
-        } else {
-            for (Map.Entry<String, TenantDatabaseProperties> entry 
-                    : multiTenantHealthProps.getTenants().entrySet()) {
-                TenantDatabaseProperties tenantHealthProps = entry.getValue();
-                metricsList.add(tenantHealthProps.getPoolName() + MetricsConstants.POSTGRES_METRIC_TOTAL_CONNECTIONS);
-                metricsList.add(tenantHealthProps.getPoolName() + MetricsConstants.POSTGRES_METRIC_ACTIVE_CONNECTIONS);
-                metricsList.add(tenantHealthProps.getPoolName() + MetricsConstants.POSTGRES_METRIC_IDLE_CONNECTIONS);
-                metricsList.add(tenantHealthProps.getPoolName() + MetricsConstants.POSTGRES_METRIC_PENDING_CONNECTIONS);
-                LOGGER.info("Created Metrics list for tenant {}: {}", entry.getKey(), metricsList);
-            }
+            return;
+        }
+        for (Map.Entry<String, TenantDatabaseProperties> entry : tenantConfigMap.entrySet()) {
+            TenantDatabaseProperties tenantHealthProps = entry.getValue();
+            metricsList.add(tenantHealthProps.getPoolName()
+                    + MetricsConstants.POSTGRES_METRIC_TOTAL_CONNECTIONS);
+            metricsList.add(tenantHealthProps.getPoolName()
+                    + MetricsConstants.POSTGRES_METRIC_ACTIVE_CONNECTIONS);
+            metricsList.add(tenantHealthProps.getPoolName()
+                    + MetricsConstants.POSTGRES_METRIC_IDLE_CONNECTIONS);
+            metricsList.add(tenantHealthProps.getPoolName()
+                    + MetricsConstants.POSTGRES_METRIC_PENDING_CONNECTIONS);
+            LOGGER.info("Created Metrics list for tenant {}: {}", entry.getKey(), metricsList);
         }
     }
 
@@ -225,9 +228,9 @@ public class IgnitePostgresDbMetricsExporter {
      * Fetch metrics.
      */
     private void fetchMetrics() {
-        for (Map.Entry<Object, Object> entry : targetDataSources.entrySet()) {
-            String tenantId = (String) entry.getKey();
-            DataSource datasource = (DataSource) entry.getValue();
+        for (Map.Entry<String, DataSource> entry : targetDataSources.entrySet()) {
+            String tenantId = entry.getKey();
+            DataSource datasource = entry.getValue();
             LOGGER.debug("Fetching PostgresDB metrics for tenant: {}", tenantId);
             if (null != datasource) {
                 MetricRegistry metricRegistry =

@@ -99,11 +99,7 @@ public class TenantContext {
      * @param tenant the tenant ID to set
      */
     public static void setCurrentTenant(String tenant) throws TenantNotFoundException {
-        // Check multitenancy flag: Spring config takes precedence, fall back to System property for unit tests
-        boolean isMultitenancyEnabled = multitenancyEnabled || 
-            Boolean.parseBoolean(System.getProperty(MultitenantConstants.MULTITENANCY_ENABLED));
-            
-        if (!isMultitenancyEnabled) {
+        if (!multitenancyEnabled) {
             LOGGER.info("Multitenancy is disabled. Setting default tenant.");
             tenant = DEFAULT_TENANT_ID;
         } else if (tenant == null || tenant.trim().isEmpty()) {

@@ -79,7 +79,7 @@ class PostgresDbConfigRefreshTest {
     /** The data source. */
     @Autowired
     @Qualifier("targetDataSources")
-    private Map<Object, Object> targetDataSources;
+    private Map<String, DataSource> targetDataSources;
     
     @SpyBean
     private PostgresDbConfig config;
@@ -108,7 +108,7 @@ class PostgresDbConfigRefreshTest {
      */
     @Test
     void testConnection() throws SQLException {
-        DataSource dataSource = (DataSource) targetDataSources.get("default");
+        DataSource dataSource = targetDataSources.get("default");
         assertNotNull(dataSource.getConnection());
         Awaitility.await()
             .atMost(Durations.FIVE_SECONDS)

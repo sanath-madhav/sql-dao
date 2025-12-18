@@ -44,15 +44,17 @@ import lombok.Setter;
 import org.eclipse.ecsp.sql.dao.constants.PostgresDbConstants;
 
 /**
- * Database configuration properties for multi-tenant mode.
+ * Database configuration properties for all tenants (including 'default').
  * This class is a plain POJO used for @ConfigurationProperties binding.
  * Properties are populated automatically by Spring Boot from configuration files
- * using the property prefix defined in MultiTenantDatabaseProperties.
+ * using the property prefix "tenant" defined in TenantConfig.
  * 
- * For single-tenant mode, use DefaultDbProperties which uses @Value annotations instead.
+ * Used for both single-tenant and multi-tenant modes:
+ * - Single-tenant: tenant.default.* properties
+ * - Multi-tenant: tenant.{tenantId}.* properties
  * 
  * @author hbadshah
- * @version 1.1
+ * @version 2.0
  * @since 2025-10-28
  */
 @Getter

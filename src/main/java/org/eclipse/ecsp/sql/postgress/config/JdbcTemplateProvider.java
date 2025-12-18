@@ -67,7 +67,7 @@ public class JdbcTemplateProvider {
     /** The target data sources for each tenantId. */
     @Autowired
     @Qualifier("targetDataSources")
-    private Map<Object, Object> targetDataSources;
+    private Map<String, DataSource> targetDataSources;
 
     /** Flag to enable or disable multi-tenancy */
     @Value("${" + MultitenantConstants.MULTITENANCY_ENABLED + ":false}")
@@ -83,10 +83,10 @@ public class JdbcTemplateProvider {
         Map<String, JdbcTemplate> jdbcTemplates = new HashMap<>();
         if (!isMultitenancyEnabled) {
             jdbcTemplates.put(MultitenantConstants.DEFAULT_TENANT_ID, new JdbcTemplate(
-                    (DataSource) targetDataSources.get(MultitenantConstants.DEFAULT_TENANT_ID)));
+                    targetDataSources.get(MultitenantConstants.DEFAULT_TENANT_ID)));
         } else {
-            for (Map.Entry<Object, Object> entry : targetDataSources.entrySet()) {
-                jdbcTemplates.put((String) entry.getKey(), new JdbcTemplate((DataSource) entry.getValue()));
+            for (Map.Entry<String, DataSource> entry : targetDataSources.entrySet()) {
+                jdbcTemplates.put(entry.getKey(), new JdbcTemplate(entry.getValue()));
             }
         }
         return jdbcTemplates;
@@ -102,11 +102,11 @@ public class JdbcTemplateProvider {
         Map<String, NamedParameterJdbcTemplate> namedParameterJdbcTemplates = new HashMap<>();
         if (!isMultitenancyEnabled) {
             namedParameterJdbcTemplates.put(MultitenantConstants.DEFAULT_TENANT_ID,
-                new NamedParameterJdbcTemplate((DataSource) targetDataSources.get(MultitenantConstants.DEFAULT_TENANT_ID)));
+                new NamedParameterJdbcTemplate(targetDataSources.get(MultitenantConstants.DEFAULT_TENANT_ID)));
         } else {
-            for (Map.Entry<Object, Object> entry : targetDataSources.entrySet()) {
-                namedParameterJdbcTemplates.put((String) entry.getKey(),
-                    new NamedParameterJdbcTemplate((DataSource) entry.getValue()));
+            for (Map.Entry<String, DataSource> entry : targetDataSources.entrySet()) {
+                namedParameterJdbcTemplates.put(entry.getKey(),
+                    new NamedParameterJdbcTemplate(entry.getValue()));
             }
         }
         return namedParameterJdbcTemplates;
