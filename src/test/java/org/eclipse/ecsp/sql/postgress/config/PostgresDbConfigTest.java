@@ -84,7 +84,8 @@ class PostgresDbConfigTest {
     
     /** The postgresql container. */
     @Container
-    static PostgreSQLContainer postgresqlContainer = new PostgreSQLContainer("postgres:15").withDatabaseName("test")
+    @SuppressWarnings("resource")
+    static PostgreSQLContainer<?> postgresqlContainer = new PostgreSQLContainer<>("postgres:15").withDatabaseName("test")
             .withUsername("root").withPassword("root");
 
     /**
@@ -119,9 +120,9 @@ class PostgresDbConfigTest {
                 tenantId, credentialProviderBeanName);
 
         // Then: Provider should be created and added successfully
-        assertNotNull(provider, "Credentials provider should not be null");
-        assertNotNull(provider.getUserName(), "Username should not be null");
-        assertNotNull(provider.getPassword(), "Password should not be null");
+        assertNotNull(provider);
+        assertNotNull(provider.getUserName());
+        assertNotNull(provider.getPassword());
     }
 
     @Test
@@ -133,16 +134,16 @@ class PostgresDbConfigTest {
         
         CredentialsProvider initialProvider = postgresDbConfig.addOrUpdateCredentialsProvider(
                 tenantId, credentialProviderBeanName);
-        assertNotNull(initialProvider, "Initial provider should not be null");
+        assertNotNull(initialProvider);
 
         // When: Updating with the same tenant ID
         CredentialsProvider updatedProvider = postgresDbConfig.addOrUpdateCredentialsProvider(
                 tenantId, credentialProviderBeanName);
 
         // Then: Update should succeed
-        assertNotNull(updatedProvider, "Updated provider should not be null");
-        assertNotNull(updatedProvider.getUserName(), "Username should not be null");
-        assertNotNull(updatedProvider.getPassword(), "Password should not be null");
+        assertNotNull(updatedProvider);
+        assertNotNull(updatedProvider.getUserName());
+        assertNotNull(updatedProvider.getPassword());
     }
 
     @Test
@@ -167,7 +168,7 @@ class PostgresDbConfigTest {
         
         CredentialsProvider provider = postgresDbConfig.addOrUpdateCredentialsProvider(
                 tenantId, credentialProviderBeanName);
-        assertNotNull(provider, "Provider should be added");
+        assertNotNull(provider);
 
         // When: Removing the credentials provider
         postgresDbConfig.removeCredentialsProvider(tenantId);
@@ -176,7 +177,7 @@ class PostgresDbConfigTest {
         // Verify by trying to add again - should work as if it's a new tenant
         CredentialsProvider newProvider = postgresDbConfig.addOrUpdateCredentialsProvider(
                 tenantId, credentialProviderBeanName);
-        assertNotNull(newProvider, "Should be able to add provider again after removal");
+        assertNotNull(newProvider);
     }
 
     @Test
@@ -209,9 +210,9 @@ class PostgresDbConfigTest {
                 tenant3, credentialProviderBeanName);
 
         // Then: All providers should be created successfully
-        assertNotNull(provider1, "Provider1 should not be null");
-        assertNotNull(provider2, "Provider2 should not be null");
-        assertNotNull(provider3, "Provider3 should not be null");
+        assertNotNull(provider1);
+        assertNotNull(provider2);
+        assertNotNull(provider3);
 
         // Cleanup
         postgresDbConfig.removeCredentialsProvider(tenant1);

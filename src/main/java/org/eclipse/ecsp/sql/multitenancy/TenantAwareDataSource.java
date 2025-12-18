@@ -39,13 +39,13 @@
 
 package org.eclipse.ecsp.sql.multitenancy;
 
+import java.sql.SQLException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.sql.DataSource;
 
-import org.eclipse.ecsp.sql.authentication.CredentialsProvider;
 import org.eclipse.ecsp.sql.dao.constants.MultitenantConstants;
 import org.eclipse.ecsp.sql.exception.SqlDaoException;
 import org.eclipse.ecsp.sql.postgress.config.PostgresDbConfig;
@@ -142,7 +142,7 @@ public class TenantAwareDataSource {
         }
         tenantId = validatedTenantId.get();
 
-        if (!validateTenantProperties(tenantId, tenantDatabaseProperties)) {
+        if (!isTenantPropertiesNull(tenantId, tenantDatabaseProperties)) {
             return false;
         }
 
@@ -218,7 +218,7 @@ public class TenantAwareDataSource {
      * @param properties The properties to validate
      * @return true if properties are valid, false otherwise
      */
-    private boolean validateTenantProperties(String tenantId, TenantDatabaseProperties properties) {
+    private boolean isTenantPropertiesNull(String tenantId, TenantDatabaseProperties properties) {
         return Optional.ofNullable(properties)
             .map(p -> true)
             .orElseGet(() -> {
@@ -234,8 +234,8 @@ public class TenantAwareDataSource {
      * @param tenantDatabaseProperties The database properties
      * @return true if operation succeeded, false otherwise
      */
-    private boolean performAddOrUpdate(String tenantId, TenantDatabaseProperties tenantDatabaseProperties) {
-
+    private boolean performAddOrUpdate(String tenantId, TenantDatabaseProperties tenantDatabaseProperties)
+        throws InterruptedException, SQLException {
 
         // Create new datasource
         Optional<DataSource> newDataSource = createDataSource(tenantId, tenantDatabaseProperties);
@@ -296,30 +296,16 @@ public class TenantAwareDataSource {
      * @param tenantId The tenant identifier
      * @param properties The database properties
      * @return Optional containing created DataSource if successful, empty otherwise
+     * @throws SQLException 
+     * @throws InterruptedException 
      */
-    private Optional<DataSource> createDataSource(String tenantId, TenantDatabaseProperties tenantDatabaseProperties) {
-
+    private Optional<DataSource> createDataSource(String tenantId, TenantDatabaseProperties tenantDatabaseProperties) throws InterruptedException, SQLException {
         String credentialProviderBeanName = tenantDatabaseProperties.getCredentialProviderBeanName();
         if (credentialProviderBeanName != null && !credentialProviderBeanName.trim().isEmpty()) {
-            CredentialsProvider credentialsProvider = postgresDbConfig.addOrUpdateCredentialsProvider(tenantId, credentialProviderBeanName);
-            // Update tenantDatabaseProperties with credentials from the provider
-            String username = credentialsProvider.getUserName();
-            String password = credentialsProvider.getPassword();
-            tenantDatabaseProperties.setUserName(username);
-            tenantDatabaseProperties.setPassword(password);
-            logger.info("Successfully added/updated credentials provider and updated credentials for tenant: " + tenantId);
-        } else {
-            logger.warning("No credential provider bean name specified for tenant: " + tenantId);
+            postgresDbConfig.addOrUpdateCredentialsProvider(tenantId, credentialProviderBeanName);
+            logger.info("Successfully added/updated credentials provider for tenant: " + tenantId);
         }
-
-        return Optional.ofNullable(postgresDbConfig.createAndGetDataSource(tenantDatabaseProperties))
-            .map(ds -> {
-                return ds;
-            })
-            .or(() -> {
-                logger.severe("Failed to create datasource for tenant: " + tenantId);
-                return Optional.empty();
-            });
+        return Optional.ofNullable(postgresDbConfig.initDataSource(tenantId, tenantDatabaseProperties));
     }
 
     /**
