@@ -529,4 +529,36 @@ public class PostgresDbConfig {
         }
         this.printConnections(hikariPoolMxBean);
     }
+
+    /**
+     * Adds or updates a credentials provider for a specific tenant.
+     * 
+     * @param tenantId The unique identifier for the tenant
+     * @param credentialProviderBeanName The bean name of the credentials provider to instantiate
+     * @return The created CredentialsProvider instance
+     */
+    public CredentialsProvider addOrUpdateCredentialsProvider(String tenantId, String credentialProviderBeanName) {
+        LOGGER.info("Adding/updating credentials provider for tenant: {}", tenantId);
+        try {
+            CredentialsProvider credentialsProvider = 
+                (CredentialsProvider) utils.getClassInstance(credentialProviderBeanName);
+            credsProviderMap.put(tenantId, credentialsProvider);
+            LOGGER.info("Successfully added/updated credentials provider for tenant: {}", tenantId);
+            return credentialsProvider;
+        } catch (Exception e) {
+            LOGGER.error("Failed to add credentials provider for tenant: {}", tenantId, e);
+            throw new SqlDaoException("Failed to add credentials provider for tenant: " + tenantId, e);
+        }
+    }
+
+    /**
+     * Removes a credentials provider for a specific tenant.
+     * 
+     * @param tenantId The unique identifier for the tenant
+     */
+    public void removeCredentialsProvider(String tenantId) {
+        LOGGER.info("Removing credentials provider for tenant: {}", tenantId);
+        credsProviderMap.remove(tenantId);
+        LOGGER.info("Successfully removed credentials provider for tenant: {}", tenantId);
+    }
 }

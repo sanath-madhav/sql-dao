@@ -40,9 +40,12 @@
 package org.eclipse.ecsp.sql.multitenancy;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.sql.DataSource;
+
+import org.eclipse.ecsp.sql.authentication.CredentialsProvider;
 import org.eclipse.ecsp.sql.dao.constants.MultitenantConstants;
 import org.eclipse.ecsp.sql.exception.SqlDaoException;
 import org.eclipse.ecsp.sql.postgress.config.PostgresDbConfig;
@@ -77,6 +80,9 @@ public class TenantAwareDataSource {
 
     @Autowired
     private PostgresDbConfig postgresDbConfig;
+
+    @Autowired
+    private MultiTenantDatabaseProperties multiTenantDbProperties;
 
     private TenantRoutingDataSource tenantRoutingDataSource;
 
@@ -117,114 +123,263 @@ public class TenantAwareDataSource {
     /**
      * Adds or updates a tenant-specific datasource at runtime.
      * 
-     * @param tenantId
-     * @param tenantDatabaseProperties
-     * @return
+     * @param tenantId The tenant identifier
+     * @param tenantDatabaseProperties Database configuration properties for the tenant
+     * @return true if operation succeeded, false otherwise
      */
-    public synchronized boolean addOrUpdateTenantDataSource(String tenantId, TenantDatabaseProperties tenantDatabaseProperties) {
-        try {
-            logger.info("Adding/updating tenant datasource for: " + tenantId);
+    public synchronized boolean addOrUpdateTenantDataSource(String tenantId, 
+                                                            TenantDatabaseProperties tenantDatabaseProperties) {
+        logger.info("Adding/updating tenant datasource for: " + tenantId);
 
-            if (!isMultitenancyEnabled) {
-                logger.warning("Multitenancy is disabled. Cannot add tenant datasource.");
-                return false;
-            }
-
-            if (tenantId == null || tenantId.trim().isEmpty()) {
-                logger.warning("Invalid tenant ID provided. Cannot add tenant datasource.");
-                return false;
-            }
-
-            if (tenantDatabaseProperties == null) {
-                logger.warning("Tenant database properties cannot be null for tenant: " + tenantId);
-                return false;
-            }
-            tenantId = tenantId.trim();
-            // Create new datasource directly using the provided properties
-            DataSource newDataSource = postgresDbConfig.createAndGetDataSource(tenantDatabaseProperties);
-            if (newDataSource == null) {
-                logger.severe("Failed to create datasource for tenant: " + tenantId);
-                return false;
-            }
-            // Close existing connection if present
-            DataSource existingDataSource = (DataSource) targetDataSources.get(tenantId);
-            targetDataSources.put(tenantId, newDataSource);
-            // Add to target datasources
-            logger.info("Successfully added tenant datasource to map: " + tenantId);
-            refreshTenantRoutingDataSource();
-            logger.info("Successfully added/updated datasource for tenant: " + tenantId);
-            closeConnection(existingDataSource,tenantId);
-            return true;
-
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error adding tenant datasource for " + tenantId + ": " + e.getMessage());
-            /*
-                Should have fall back mechanism to previous state as we are not modifying the map until
-                we have successfully created the new datasource.
-                1. Create new datasource - if fails, throw exception, low risk
-                2. Put in map - no risk
-                3. Refresh routing datasource - if fails, moderate risk - need to close new datasource
-                4. Close existing datasource - if fails, high risk - need to close new datasource, existing connection leakage
-            */
+        // Validating multitenancy is enabled
+        if (!validateMultitenancyEnabled("add or update")) {
             return false;
+        }
+
+        Optional<String> validatedTenantId = validateAndNormalizeTenantId(tenantId);
+        if (!validatedTenantId.isPresent()) {
+            return false;
+        }
+        tenantId = validatedTenantId.get();
+
+        if (!validateTenantProperties(tenantId, tenantDatabaseProperties)) {
+            return false;
+        }
+
+        try {
+            return performAddOrUpdate(tenantId, tenantDatabaseProperties);
+        } catch (Exception exception) {
+            logger.log(Level.SEVERE, "Error adding or update tenant datasource for " + tenantId + ": " + exception.getMessage());
+            throw new SqlDaoException("Error adding or update tenant datasource for " + tenantId, exception);
         }
     }
 
     /**
      * Removes a tenant-specific datasource at runtime.
      * 
-     * @param tenantId
-     * @return
+     * @param tenantId The tenant identifier to remove
+     * @return true if operation succeeded, false otherwise
      */
     public synchronized boolean removeTenantDataSource(String tenantId) {
-        try {
-            logger.info("Remove tenant datasource for: " + tenantId);
-            if (!isMultitenancyEnabled) {
-                logger.warning("Multitenancy is disabled. Cannot remove tenant datasource.");
-                return false;
-            }
-            if (tenantId == null || tenantId.trim().isEmpty()) {
-                logger.warning("Invalid tenant ID provided. Cannot remove tenant datasource.");
-                return false;
-            }
-            tenantId = tenantId.trim();
-            DataSource existingDataSource = (DataSource) targetDataSources.get(tenantId);
-            targetDataSources.remove(tenantId);
-            refreshTenantRoutingDataSource();
-            closeConnection(existingDataSource, tenantId);
-            logger.info("Successfully removed tenant datasource from map: " + tenantId);
-            return true;
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error removing tenant datasource for " + tenantId + ": " + e.getMessage());
+        logger.info("Remove tenant datasource for: " + tenantId);
+
+        // Validate preconditions
+        if (!validateMultitenancyEnabled("remove")) {
             return false;
         }
+
+        Optional<String> normalizedTenantId = validateAndNormalizeTenantId(tenantId);
+        if (!normalizedTenantId.isPresent()) {
+            return false;
+        }
+
+        try {
+            return performRemove(normalizedTenantId.get());
+        } catch (Exception exception) {
+            handleOperationError("removing", normalizedTenantId.get(), exception);
+            throw new SqlDaoException("Error removing tenant datasource for " + normalizedTenantId.get(), exception);
+        }
+    }
+
+    /**
+     * Validates if multitenancy is enabled for the operation.
+     * 
+     * @param operation The operation being performed (for logging)
+     * @return true if multitenancy is enabled, false otherwise
+     */
+    private boolean validateMultitenancyEnabled(String operation) {
+        if (!isMultitenancyEnabled) {
+            logger.warning("Multitenancy is disabled. Cannot " + operation + " tenant datasource.");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Validates and normalizes the tenant ID.
+     * 
+     * @param tenantId The tenant ID to validate
+     * @return Optional containing normalized tenant ID if valid, empty otherwise
+     */
+    private Optional<String> validateAndNormalizeTenantId(String tenantId) {
+        return Optional.ofNullable(tenantId)
+            .map(String::trim)
+            .filter(id -> !id.isEmpty())
+            .or(() -> {
+                logger.warning("Invalid tenant ID provided. Cannot add tenant datasource.");
+                return Optional.empty();
+            });
+    }
+
+    /**
+     * Validates tenant database properties.
+     * 
+     * @param tenantId The tenant identifier
+     * @param properties The properties to validate
+     * @return true if properties are valid, false otherwise
+     */
+    private boolean validateTenantProperties(String tenantId, TenantDatabaseProperties properties) {
+        return Optional.ofNullable(properties)
+            .map(p -> true)
+            .orElseGet(() -> {
+                logger.warning("Tenant database properties cannot be null for tenant: " + tenantId);
+                return false;
+            });
+    }
+
+    /**
+     * Performs the actual add or update operation.
+     * 
+     * @param tenantId The normalized tenant identifier
+     * @param tenantDatabaseProperties The database properties
+     * @return true if operation succeeded, false otherwise
+     */
+    private boolean performAddOrUpdate(String tenantId, TenantDatabaseProperties tenantDatabaseProperties) {
+
+
+        // Create new datasource
+        Optional<DataSource> newDataSource = createDataSource(tenantId, tenantDatabaseProperties);
+        if (!newDataSource.isPresent()) {
+            return false;
+        }
+
+        // Get existing datasource before replacement
+        Optional<DataSource> existingDataSource = Optional.ofNullable(
+            (DataSource) targetDataSources.get(tenantId));
+
+        // Update datasource map
+        updateDataSourceMap(tenantId, newDataSource.get());
+
+        // Refresh routing
+        refreshTenantRoutingDataSource();
+
+        // Clean up old datasource
+        existingDataSource.ifPresent(ds -> closeConnection(ds, tenantId));
+        // Update multi-tenant properties
+        multiTenantDbProperties.getProfile().put(tenantId, tenantDatabaseProperties);
+        logger.info("Successfully added/updated datasource for tenant: " + tenantId);
+        return true;
+    }
+
+    /**
+     * Performs the actual remove operation.
+     * 
+     * @param tenantId The normalized tenant identifier
+     * @return true if operation succeeded, false otherwise
+     */
+    private boolean performRemove(String tenantId) {
+        // Get existing datasource
+        Optional<DataSource> existingDataSource = Optional.ofNullable(
+            (DataSource) targetDataSources.get(tenantId));
+
+        // Remove from map
+        removeFromDataSourceMap(tenantId);
+
+        // Refresh routing
+        refreshTenantRoutingDataSource();
+
+        // Clean up datasource
+        existingDataSource.ifPresent(ds -> closeConnection(ds, tenantId));
+
+        // Remove credentials provider for the tenant
+        postgresDbConfig.removeCredentialsProvider(tenantId);
+        logger.info("Successfully removed credentials provider for tenant: " + tenantId);
+        
+        // Update multi-tenant properties
+        multiTenantDbProperties.getProfile().remove(tenantId);
+        return true;
+    }
+
+    /**
+     * Creates a new datasource for the tenant.
+     * 
+     * @param tenantId The tenant identifier
+     * @param properties The database properties
+     * @return Optional containing created DataSource if successful, empty otherwise
+     */
+    private Optional<DataSource> createDataSource(String tenantId, TenantDatabaseProperties tenantDatabaseProperties) {
+
+        String credentialProviderBeanName = tenantDatabaseProperties.getCredentialProviderBeanName();
+        if (credentialProviderBeanName != null && !credentialProviderBeanName.trim().isEmpty()) {
+            CredentialsProvider credentialsProvider = postgresDbConfig.addOrUpdateCredentialsProvider(tenantId, credentialProviderBeanName);
+            // Update tenantDatabaseProperties with credentials from the provider
+            String username = credentialsProvider.getUserName();
+            String password = credentialsProvider.getPassword();
+            tenantDatabaseProperties.setUserName(username);
+            tenantDatabaseProperties.setPassword(password);
+            logger.info("Successfully added/updated credentials provider and updated credentials for tenant: " + tenantId);
+        } else {
+            logger.warning("No credential provider bean name specified for tenant: " + tenantId);
+        }
+
+        return Optional.ofNullable(postgresDbConfig.createAndGetDataSource(tenantDatabaseProperties))
+            .map(ds -> {
+                return ds;
+            })
+            .or(() -> {
+                logger.severe("Failed to create datasource for tenant: " + tenantId);
+                return Optional.empty();
+            });
+    }
+
+    /**
+     * Updates the datasource map with the new datasource.
+     * 
+     * @param tenantId The tenant identifier
+     * @param dataSource The datasource to add
+     */
+    private void updateDataSourceMap(String tenantId, DataSource dataSource) {
+        targetDataSources.put(tenantId, dataSource);
+        logger.info("Successfully added tenant datasource to map: " + tenantId);
+    }
+
+    /**
+     * Removes a datasource from the map.
+     * 
+     * @param tenantId The tenant identifier
+     */
+    private void removeFromDataSourceMap(String tenantId) {
+        targetDataSources.remove(tenantId);
+    }
+
+    /**
+     * Handles errors during datasource operations.
+     * 
+     * @param operation The operation being performed
+     * @param tenantId The tenant identifier
+     * @param exception The exception that occurred
+     */
+    private void handleOperationError(String operation, String tenantId, Exception exception) {
+        logger.log(Level.SEVERE, "Error " + operation + " tenant datasource for " 
+                   + tenantId + ": " + exception.getMessage());
     }
 
     /**
      * Refreshes the tenant routing datasource to reflect changes in target datasources.
      */
     private void refreshTenantRoutingDataSource() {
-        if (tenantRoutingDataSource != null) {
-            tenantRoutingDataSource.setTargetDataSources(targetDataSources);
-            tenantRoutingDataSource.afterPropertiesSet();
-            logger.info("Tenant routing datasource refreshed successfully.");
-        } else {
-            logger.warning("Cannot refresh tenant routing datasource - instance not initialized.");
-        }
+        Optional.ofNullable(tenantRoutingDataSource)
+            .ifPresentOrElse(
+                routing -> {
+                    routing.setTargetDataSources(targetDataSources);
+                    routing.afterPropertiesSet();
+                    logger.info("Tenant routing datasource refreshed successfully.");
+                },
+                () -> logger.warning("Cannot refresh tenant routing datasource - instance not initialized.")
+            );
     }
 
     /**
      * Closes the existing datasource for a given tenant.
      *    
-     * @param tenantId
+     * @param existingDataSource The datasource to close
+     * @param tenantId The tenant identifier
      */
     private void closeConnection(DataSource existingDataSource, String tenantId) {
         logger.info("Closing existing datasource for tenant: " + tenantId);
         try {
-            if (existingDataSource != null) {
-                postgresDbConfig.cleanupDataSource(existingDataSource);
-                logger.info("Closed existing datasource for tenant: " + tenantId);
-            }
+            postgresDbConfig.cleanupDataSource(existingDataSource);
+            logger.info("Closed existing datasource for tenant: " + tenantId);
         } catch (Exception e) {
             logger.severe("Error while closing datasource for tenant " + tenantId + ": " + e.getMessage());
             throw new SqlDaoException("Error while closing datasource for tenant : " + tenantId, e);
