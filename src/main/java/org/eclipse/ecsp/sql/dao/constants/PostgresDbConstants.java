@@ -114,4 +114,58 @@ public class PostgresDbConstants {
     
     /** The Constant FIVE_THOUSAND. */
     public static final int FIVE_THOUSAND = 5000;
+    
+    /** Default driver class name. */
+    public static final String DEFAULT_DRIVER_CLASS_NAME = "org.postgresql.Driver";
+    
+    /** Default pool name. */
+    public static final String DEFAULT_POOL_NAME = "defaultPool";
+    
+    /** Default connection timeout in milliseconds. */
+    public static final int DEFAULT_CONNECTION_TIMEOUT_MS = 60000;
+    
+    /** Default minimum pool size. */
+    public static final int DEFAULT_MIN_POOL_SIZE = 1;
+    
+    /** Default maximum pool size. */
+    public static final int DEFAULT_MAX_POOL_SIZE = 10;
+    
+    /** Default maximum idle time in seconds. */
+    public static final int DEFAULT_MAX_IDLE_TIME = 600;
+    
+    /** Default cache prepared statements value. */
+    public static final String DEFAULT_CACHE_PREP_STMTS = "true";
+    
+    /** Default prepared statement cache size. */
+    public static final int DEFAULT_PREP_STMT_CACHE_SIZE = 250;
+    
+    /** Default prepared statement cache SQL limit. */
+    public static final int DEFAULT_PREP_STMT_CACHE_SQL_LIMIT = 2048;
+    
+    /** Default expected 99th percentile milliseconds value. */
+    public static final String DEFAULT_EXPECTED_99TH_PERCENTILE_MS = "60000";
+    
+    /** Default credential provider bean class name. */
+    public static final String DEFAULT_CREDENTIAL_PROVIDER_BEAN_NAME = "org.eclipse.ecsp.sql.authentication.DefaultPostgresDbCredentialsProvider";
+    
+    /** Default credentials refresh enabled flag. */
+    public static final boolean DEFAULT_CREDS_REFRESH_ENABLED = false;
+    
+    /** Default data source retry count. */
+    public static final int DEFAULT_DATASOURCE_RETRY_COUNT = 3;
+    
+    /** Default data source retry delay in milliseconds. */
+    public static final int DEFAULT_DATASOURCE_RETRY_DELAY = 10;
+    
+    /** Default connection retry count. */
+    public static final int DEFAULT_CONNECTION_RETRY_COUNT = 3;
+    
+    /** Default connection retry delay in milliseconds. */
+    public static final int DEFAULT_CONNECTION_RETRY_DELAY = 10;
+    
+    /** Default SSL mode. */
+    public static final String DEFAULT_SSL_MODE = "prefer";
+    
+    /** Default SSL response timeout in milliseconds. */
+    public static final int DEFAULT_SSL_RESPONSE_TIMEOUT = 5000;
 }

@@ -45,16 +45,21 @@ import com.zaxxer.hikari.HikariDataSource;
 import jakarta.annotation.PostConstruct;
 import org.eclipse.ecsp.healthcheck.HealthMonitor;
 import org.eclipse.ecsp.sql.dao.constants.HealthConstants;
+import org.eclipse.ecsp.sql.dao.constants.MultitenantConstants;
 import org.eclipse.ecsp.sql.dao.constants.PostgresDbConstants;
+import org.eclipse.ecsp.sql.multitenancy.TenantDatabaseProperties;
 import org.eclipse.ecsp.utils.logger.IgniteLogger;
 import org.eclipse.ecsp.utils.logger.IgniteLoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Health monitor for PostgresDB.
@@ -63,28 +68,38 @@ import java.util.List;
  * PostgresDB.
  * <br>
  * Callback for restart on unhealthy health monitor is implemented by {@link PostgresDbHealthService}
+ * <br>
+ * This component depends on PostgresDbConfig to ensure targetDataSources map is fully initialized
+ * before health checks are registered.
  */
 @Component
+@DependsOn("postgresDbConfig")
 public class PostgresDbHealthMonitor implements HealthMonitor {
 
     /** The logger. */
     private static IgniteLogger logger = IgniteLoggerFactory.getLogger(PostgresDbHealthMonitor.class);
 
-    /** The datasource. */
+    /** Configuration map for all the tenant IDs. */
     @Autowired
-    private DataSource datasource;
+    @Qualifier("tenantConfigMap")
+    private Map<String, TenantDatabaseProperties> tenantConfigMap;
 
-    /** The postgres db health monitor enabled flag. */
+    /** Target data sources for each tenant ID. */
+    @Autowired
+    @Qualifier("targetDataSources")
+    private Map<String, DataSource> targetDataSources;
+
+    /** Flag to enable or disable multi-tenancy */
+    @Value("${" + MultitenantConstants.MULTITENANCY_ENABLED + ":false}")
+    private boolean isMultitenancyEnabled;
+
+        /** The postgres db health monitor enabled flag. */
     @Value("${" + HealthConstants.HEALTH_POSTGRES_DB_MONITOR_ENABLED + ": true }")
     private boolean postgresDbHealthMonitorEnabled;
 
     /** The postgres db restart on failure flag. */
     @Value("${" + HealthConstants.HEALTH_POSTGRES_DB_MONITOR_RESTART_ON_FAILURE + ": true }")
     private boolean postgresDbRestartOnFailure;
-
-    /** The pool name. */
-    @Value("${" + PostgresDbConstants.POSTGRES_POOL_NAME + "}")
-    private String poolName;
 
     /** The health check list. */
     List<String> healthCheckList;
@@ -95,8 +110,22 @@ public class PostgresDbHealthMonitor implements HealthMonitor {
     @PostConstruct
     public void init() {
         healthCheckList = new ArrayList<>();
-        healthCheckList.add(poolName + HealthConstants.POOL_CONNECTIVITY_HEALTH_CHECK);
-        healthCheckList.add(poolName + HealthConstants.POOL_CONNECTION_99_PERCENT_HEALTH_CHECK);
+        if (!isMultitenancyEnabled) {
+            healthCheckList.add(tenantConfigMap.get(MultitenantConstants.DEFAULT_TENANT_ID).getPoolName()
+                    + HealthConstants.POOL_CONNECTIVITY_HEALTH_CHECK);
+            healthCheckList.add(tenantConfigMap.get(MultitenantConstants.DEFAULT_TENANT_ID).getPoolName()
+                    + HealthConstants.POOL_CONNECTION_99_PERCENT_HEALTH_CHECK);
+            logger.info("Initialized health check list for default tenant: {}", healthCheckList);
+            return;
+        }
+        for (Map.Entry<String, TenantDatabaseProperties> tenantHealthProps 
+                : tenantConfigMap.entrySet()) {
+            healthCheckList.add(tenantHealthProps.getValue().getPoolName()
+                    + HealthConstants.POOL_CONNECTIVITY_HEALTH_CHECK);
+            healthCheckList.add(tenantHealthProps.getValue().getPoolName()
+                    + HealthConstants.POOL_CONNECTION_99_PERCENT_HEALTH_CHECK);
+        }
+        logger.info("Initialized health check list for all tenants: {}", healthCheckList);
     }
 
     /**
@@ -107,25 +136,33 @@ public class PostgresDbHealthMonitor implements HealthMonitor {
      */
     @Override
     public boolean isHealthy(boolean forceHealthCheck) {
-
-        if (datasource == null) {
-            return false;
-        }
-        HealthCheckRegistry healthCheckRegistry = (HealthCheckRegistry)
-                ((HikariDataSource) datasource).getHealthCheckRegistry();
-        for (String healthCheckName : healthCheckList) {
-            HealthCheck.Result healthCheckResult = healthCheckRegistry.getHealthCheck(healthCheckName).execute();
-            logger.info("Health check result for {} - {} - isHealthy: {}",
-                    HealthConstants.HEALTH_POSTGRES_DB_MONITOR_NAME,
-                    healthCheckName,
-                    healthCheckResult.isHealthy());
-            if (Boolean.FALSE.equals(healthCheckResult.isHealthy())) {
-                logger.error("Health check failed for {} - {}, with message {}, Error : {}",
-                        HealthConstants.HEALTH_POSTGRES_DB_MONITOR_NAME,
-                        healthCheckName,
-                        healthCheckResult.getMessage(),
-                        healthCheckResult.getError());
-                return false;
+        for (Map.Entry<String, DataSource> entry : targetDataSources.entrySet()) {
+            String tenantId = entry.getKey();
+            DataSource datasource = entry.getValue();
+            logger.info("Checking health for tenant: {}", tenantId);
+            if (datasource == null) return false;
+             
+            HealthCheckRegistry healthCheckRegistry =
+                    (HealthCheckRegistry) ((HikariDataSource) datasource).getHealthCheckRegistry();
+            for (String healthCheckName : healthCheckList) {
+                HealthCheck healthCheck = healthCheckRegistry.getHealthCheck(healthCheckName);
+                if (healthCheck == null) {
+                    logger.error("Health check '{}' not found in registry for tenantId: {}. " +
+                            "Available health checks: {}", 
+                            healthCheckName, tenantId, healthCheckRegistry.getNames());
+                    return false;
+                }
+                HealthCheck.Result healthCheckResult = healthCheck.execute();
+                logger.info("Health check result for {} - {} for tenantID - {} - isHealthy: {}",
+                                HealthConstants.HEALTH_POSTGRES_DB_MONITOR_NAME, healthCheckName, tenantId,
+                        healthCheckResult.isHealthy());
+                if (Boolean.FALSE.equals(healthCheckResult.isHealthy())) {
+                    logger.error("Health check failed for {} - health check name: {} " +
+                                        "for tenantId - {}, with message {}, Error : {}",
+                                        HealthConstants.HEALTH_POSTGRES_DB_MONITOR_NAME, healthCheckName, tenantId,
+                                        healthCheckResult.getMessage(), healthCheckResult.getError());
+                    return false;
+                }
             }
         }
         return true;

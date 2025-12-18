@@ -1,38 +1,38 @@
 /*
  *
  *
- *   ******************************************************************************
+ * ******************************************************************************
  *
- *    Copyright (c) 2023-24 Harman International
- *
- *
- *
- *    Licensed under the Apache License, Version 2.0 (the "License");
- *
- *    you may not use this file except in compliance with the License.
- *
- *    You may obtain a copy of the License at
+ * Copyright (c) 2023-24 Harman International
  *
  *
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * Licensed under the Apache License, Version 2.0 (the "License");
  *
+ * you may not use this file except in compliance with the License.
  *
- *    Unless required by applicable law or agreed to in writing, software
- *
- *    distributed under the License is distributed on an "AS IS" BASIS,
- *
- *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *
- *    See the License for the specific language governing permissions and
- *
- *    limitations under the License.
+ * You may obtain a copy of the License at
  *
  *
  *
- *    SPDX-License-Identifier: Apache-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- *    *******************************************************************************
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ *
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *
+ * See the License for the specific language governing permissions and
+ *
+ * limitations under the License.
+ *
+ *
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * *******************************************************************************
  *
  *
  */
@@ -44,6 +44,7 @@ import com.zaxxer.hikari.HikariPoolMXBean;
 import org.eclipse.ecsp.sql.authentication.CredentialsProvider;
 import org.eclipse.ecsp.sql.authentication.DefaultPostgresDbCredentialsProvider;
 import org.eclipse.ecsp.sql.exception.SqlDaoException;
+import org.eclipse.ecsp.sql.multitenancy.TenantDatabaseProperties;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -53,10 +54,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-
-import static org.junit.Assert.assertNotNull;
+import java.util.Map;
+import javax.sql.DataSource;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 /**
@@ -87,20 +90,30 @@ class PostgresConnectionsTest {
 
     /** The data source. */
     @Mock
-    HikariDataSource dataSource;
+    HikariDataSource hikariDataSource;
+
+    /** The data source. */
+    @Mock
+    DataSource dataSource;
+
+    /** The target data sources. */
+    @Mock
+    Map<Object, Object> targetDataSources;
+
+    TenantDatabaseProperties dbProps = new TenantDatabaseProperties();
 
     /** The Constant THREE. */
     public static final int THREE = 3;
-    
+
     /** The Constant TWO. */
     public static final int TWO = 2;
-    
+
     /** The Constant ZERO. */
     public static final int ZERO = 0;
-    
+
     /** The Constant THIRTY_THREE. */
     public static final int THIRTY_THREE = 30;
-    
+
     /** The Constant SIXTY_THOUSAND. */
     public static final int SIXTY_THOUSAND = 60000;
 
@@ -150,23 +163,29 @@ class PostgresConnectionsTest {
     @Test
     void testFailureConnectionCreation() throws SQLException {
         MockitoAnnotations.openMocks(this);
-        postgresDbConfig.dataSource();
-        when(credentialsProvider.getUserName()).thenReturn("test");
-        when(credentialsProvider.getPassword()).thenReturn("pass");
-        ReflectionTestUtils.setField(postgresDbConfig, "dataSourceRetryCount", ZERO);
-        ReflectionTestUtils.setField(postgresDbConfig, "dataSourceRetryDelay", THIRTY_THREE);
-        ReflectionTestUtils.setField(postgresDbConfig, "connectionRetryCount", THREE);
-        ReflectionTestUtils.setField(postgresDbConfig, "connectionRetryDelay", THIRTY_THREE);
-        ReflectionTestUtils.setField(postgresDbConfig, "jdbcUrl", "url");
-        ReflectionTestUtils.setField(postgresDbConfig, "userName", "test");
-        ReflectionTestUtils.setField(postgresDbConfig, "password", "pass");
-        ReflectionTestUtils.setField(postgresDbConfig, "driverClassName", "org.postgresql.Driver");
-        ReflectionTestUtils.setField(postgresDbConfig, "maxPoolSize", TWO);
-        when(dataSource.getConnection()).thenThrow(new SQLException());
-        when(dataSource.getHikariPoolMXBean()).thenReturn(hikariPoolMxBean);
-        Exception e = assertThrows(SqlDaoException.class,
-                () -> postgresDbConfig.initDataSource());
-        assertTrue(e.getMessage().contains("All retry attempts are exhausted for connection creation"));
+        defaultPostgresDbCredentialsProvider = new DefaultPostgresDbCredentialsProvider();
+        ReflectionTestUtils.setField(defaultPostgresDbCredentialsProvider, "userName", "testUser");
+        ReflectionTestUtils.setField(defaultPostgresDbCredentialsProvider, "password",
+                "testPassword");
+        dbProps.setDataSourceRetryCount(ZERO);
+        dbProps.setDataSourceRetryDelay(THIRTY_THREE);
+        dbProps.setConnectionRetryCount(THREE);
+        dbProps.setConnectionRetryDelay(THIRTY_THREE);
+        dbProps.setJdbcUrl("url");
+        dbProps.setDriverClassName("org.postgresql.Driver");
+        dbProps.setMaxPoolSize(TWO);
+        dbProps.setCredentialProviderBeanName(
+                defaultPostgresDbCredentialsProvider.getClass().getName());
+
+        when(ctx.getBean(anyString())).thenReturn(defaultPostgresDbCredentialsProvider);
+        when(targetDataSources.get(anyString())).thenReturn(hikariDataSource);
+        when(hikariDataSource.getConnection()).thenThrow(new SQLException());
+        when(hikariDataSource.getHikariPoolMXBean()).thenReturn(hikariPoolMxBean);
+
+        Exception e = assertThrows(SqlDaoException.class, () -> ReflectionTestUtils
+                .invokeMethod(postgresDbConfig, "retryConnectionCreation", "default", dbProps));
+        assertTrue(e.getMessage()
+                .contains("All retry attempts are exhausted for connection creation"));
     }
 
 
@@ -179,29 +198,33 @@ class PostgresConnectionsTest {
     @Test
     void testConnectionCreationWithSsl() throws SQLException, InterruptedException {
         MockitoAnnotations.openMocks(this);
-        postgresDbConfig.dataSource();
-        when(credentialsProvider.getUserName()).thenReturn("test");
-        when(credentialsProvider.getPassword()).thenReturn("pass");
-        ReflectionTestUtils.setField(postgresDbConfig, "dataSourceRetryCount", ZERO);
-        ReflectionTestUtils.setField(postgresDbConfig, "dataSourceRetryDelay", THIRTY_THREE);
-        ReflectionTestUtils.setField(postgresDbConfig, "connectionRetryCount", THREE);
-        ReflectionTestUtils.setField(postgresDbConfig, "connectionRetryDelay", THIRTY_THREE);
-        ReflectionTestUtils.setField(postgresDbConfig, "jdbcUrl", "jdbc:postgresql://localhost:5432/postgres");
-        ReflectionTestUtils.setField(postgresDbConfig, "userName", "test");
-        ReflectionTestUtils.setField(postgresDbConfig, "password", "pass");
-        ReflectionTestUtils.setField(postgresDbConfig, "driverClassName", "org.postgresql.Driver");
-        ReflectionTestUtils.setField(postgresDbConfig, "maxPoolSize", TWO);
-        ReflectionTestUtils.setField(postgresDbConfig, "authMechanism", "one-way-tls");
-        ReflectionTestUtils.setField(postgresDbConfig, "rootCrtPath", "src/test/root.crt");
-        ReflectionTestUtils.setField(postgresDbConfig, "sslMode", "verify-full");
-        ReflectionTestUtils.setField(postgresDbConfig, "expected99thPercentileMsValue", "6000");
-        ReflectionTestUtils.setField(postgresDbConfig, "prepStmtCacheSqlLimit", SIXTY_THOUSAND);
-        ReflectionTestUtils.setField(postgresDbConfig, "prepStmtCacheSize", SIXTY_THOUSAND);
-        ReflectionTestUtils.setField(postgresDbConfig, "cachePrepStmts", "true");
-        when(dataSource.getConnection()).thenReturn(connection);
-        when(dataSource.getHikariPoolMXBean()).thenReturn(hikariPoolMxBean);
-        postgresDbConfig.initDataSource();
-        assertNotNull(postgresDbConfig.dataSource().getConnection());
-    }
+        defaultPostgresDbCredentialsProvider = new DefaultPostgresDbCredentialsProvider();
+        ReflectionTestUtils.setField(defaultPostgresDbCredentialsProvider, "userName", "testUser");
+        ReflectionTestUtils.setField(defaultPostgresDbCredentialsProvider, "password",
+                "testPassword");
+        dbProps.setDataSourceRetryCount(ZERO);
+        dbProps.setDataSourceRetryDelay(THIRTY_THREE);
+        dbProps.setConnectionRetryCount(THREE);
+        dbProps.setConnectionRetryDelay(THIRTY_THREE);
+        dbProps.setJdbcUrl("url");
+        dbProps.setDriverClassName("org.postgresql.Driver");
+        dbProps.setMaxPoolSize(TWO);
+        dbProps.setCredentialProviderBeanName(
+                defaultPostgresDbCredentialsProvider.getClass().getName());
+        dbProps.setAuthMechanism("one-way-tls");
+        dbProps.setRootCrtPath("src/test/root.crt");
+        dbProps.setSslMode("verify-full");
+        dbProps.setExpected99thPercentileMsValue("6000");
+        dbProps.setPrepStmtCacheSqlLimit(SIXTY_THOUSAND);
+        dbProps.setPrepStmtCacheSize(SIXTY_THOUSAND);
+        dbProps.setCachePrepStmts("true");
 
+        ReflectionTestUtils.setField(postgresDbConfig, "targetDataSources", targetDataSources);
+        when(ctx.getBean(anyString())).thenReturn(defaultPostgresDbCredentialsProvider);
+        when(targetDataSources.get(anyString())).thenReturn(hikariDataSource);
+        when(hikariDataSource.getConnection()).thenReturn(connection);
+        when(hikariDataSource.getHikariPoolMXBean()).thenReturn(hikariPoolMxBean);
+        postgresDbConfig.initDataSource("default", dbProps);
+        assertDoesNotThrow(() -> postgresDbConfig.initDataSource("default", dbProps));
+    }
 }

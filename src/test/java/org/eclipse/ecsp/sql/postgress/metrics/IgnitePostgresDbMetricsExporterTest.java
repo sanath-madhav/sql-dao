@@ -39,6 +39,7 @@
 
 package org.eclipse.ecsp.sql.postgress.metrics;
 
+import org.eclipse.ecsp.sql.SqlDaoApplication;
 import org.eclipse.ecsp.sql.authentication.DefaultPostgresDbCredentialsProvider;
 import org.eclipse.ecsp.sql.postgress.config.PostgresDbConfig;
 import org.junit.jupiter.api.AfterAll;
@@ -51,7 +52,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
-
+import io.prometheus.client.CollectorRegistry;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
@@ -60,7 +61,7 @@ import static org.junit.Assert.assertNotEquals;
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { DefaultPostgresDbCredentialsProvider.class, PostgresDbConfig.class,
-    IgnitePostgresDbGuage.class, IgnitePostgresDbMetricsExporter.class })
+    IgnitePostgresDbGuage.class, IgnitePostgresDbMetricsExporter.class, SqlDaoApplication.class })
 @TestPropertySource("/application-test.properties")
 class IgnitePostgresDbMetricsExporterTest {
 
@@ -82,6 +83,7 @@ class IgnitePostgresDbMetricsExporterTest {
      */
     @BeforeAll
     public static void setUpPostgres() {
+        CollectorRegistry.defaultRegistry.clear();
         postgresqlContainer.start();
         System.setProperty("DB_URL", postgresqlContainer.getJdbcUrl());
     }
@@ -125,6 +127,7 @@ class IgnitePostgresDbMetricsExporterTest {
      */
     @AfterAll
     public static void tearUpPostgresServer() {
+        CollectorRegistry.defaultRegistry.clear();
         postgresqlContainer.stop();
     }
 }

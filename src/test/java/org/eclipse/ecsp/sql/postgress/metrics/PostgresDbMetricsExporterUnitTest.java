@@ -52,6 +52,9 @@ import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
+import java.util.Map;
+import org.eclipse.ecsp.sql.multitenancy.TenantDatabaseProperties;
+
 /**
  * Test class for {@link IgnitePostgresDbMetricsExporter}.
  */
@@ -82,10 +85,13 @@ class PostgresDbMetricsExporterUnitTest {
     @Test
     void testMetrics() {
         MockitoAnnotations.openMocks(this);
+        TenantDatabaseProperties tenantHealthProps = new TenantDatabaseProperties();
+        tenantHealthProps.setPoolName("test");
+        Map<String, TenantDatabaseProperties> tenantMap = Map.of("default", tenantHealthProps);
+        ReflectionTestUtils.setField(exporter, "tenantConfigMap", tenantMap);
         ReflectionTestUtils.setField(exporter, "postgresDbMetricsEnabled", true);
         ReflectionTestUtils.setField(exporter, "threadInitialDelay", 0);
         ReflectionTestUtils.setField(exporter, "threadFrequency", 1);
-        ReflectionTestUtils.setField(exporter, "datasource", datasource);
         ReflectionTestUtils.setField(exporter, "postgresDbGauge", postgresDbGauge);
         ReflectionTestUtils.setField(exporter, "svc", "test");
         ReflectionTestUtils.setField(exporter, "nodeName", "localhost");
@@ -103,5 +109,4 @@ class PostgresDbMetricsExporterUnitTest {
         assertNotNull(datasource);
         exporter.close();
     }
-
 }

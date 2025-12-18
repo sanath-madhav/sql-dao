@@ -42,7 +42,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.eclipse.ecsp</groupId>
 	<artifactId>sql-dao</artifactId>
-	<version>1.1-SNAPSHOT</version>
+	<version>1.9-feat-17-5-SNAPSHOT</version>
 	
 	<name>SQL DAO Library</name>
 	<description>DAO framework for SQL databases</description>
@@ -115,7 +115,10 @@
         src/main/java/org/eclipse/ecsp/sql/dao/constants/HealthConstants.java,
         src/main/java/org/eclipse/ecsp/sql/dao/constants/MetricsConstants.java,
         src/main/java/org/eclipse/ecsp/sql/dao/constants/PostgresDbConstants.java,
-        src/main/java/org/eclipse/ecsp/sql/exception/SqlDaoException.java
+        src/main/java/org/eclipse/ecsp/sql/dao/constants/MultitenantConstants.java,
+        src/main/java/org/eclipse/ecsp/sql/exception/SqlDaoException.java,
+        src/main/java/org/eclipse/ecsp/sql/exception/TargetDataSourceNotFoundException.java,
+        src/main/java/org/eclipse/ecsp/sql/exception/TenantNotFoundException.java
         </sonar.coverage.exclusions>
 	</properties>
 
@@ -415,6 +418,9 @@
                         <exclude>org/eclipse/ecsp/sql/dao/constants/MetricsConstants.class</exclude>
                         <exclude>org/eclipse/ecsp/sql/dao/constants/PostgresDbConstants.class</exclude>
                         <exclude>org/eclipse/ecsp/sql/dao/exception/SqlDaoException.class</exclude>
+                        <exclude>org/eclipse/ecsp/sql/dao/constants/MultitenantConstants.class</exclude>
+                        <exclude>org/eclipse/ecsp/sql/exception/TargetDataSourceNotFoundException.class</exclude>
+                        <exclude>org/eclipse/ecsp/sql/exception/TenantNotFoundException.class</exclude>
 					</excludes>
 				</configuration>
 				<executions>
