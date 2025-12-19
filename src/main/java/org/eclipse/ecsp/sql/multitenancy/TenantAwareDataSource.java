@@ -104,7 +104,7 @@ public class TenantAwareDataSource {
     @DependsOn("targetDataSources")
     public DataSource dataSource() {
         logger.info("Initializing TenantAwareDataSource");
-        TenantRoutingDataSource tenantRoutingDataSource = new TenantRoutingDataSource();
+        tenantRoutingDataSource = new TenantRoutingDataSource();
         if (!isMultitenancyEnabled) {
             logger.info("Multitenancy is disabled. Using default tenant data source.");
             tenantRoutingDataSource.setTargetDataSources(new HashMap<>(targetDataSources));
